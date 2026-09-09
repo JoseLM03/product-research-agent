@@ -3,15 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=22.23.2 <23"
   },
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "start": "wrangler dev --config dist/server/wrangler.json",
-    "lint": "oxlint",
+    "start": "python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 1 --no-access-log",
+    "lint": "oxlint app components/research-report.tsx lib/api.ts tests/frontend scripts/check-node.mjs vite.config.ts vitest.config.ts next.config.ts",
     "format": "oxfmt",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prebuild": "node scripts/check-node.mjs"
   },
   "dependencies": {
     "@base-ui/react": "1.7.0",

@@ -20,6 +20,8 @@ jobs:
           cache: pip
       - run: pip install -r requirements-dev.txt
       - run: pytest -q
+      - run: ruff check backend tests scripts migrations
+      - run: ruff format --check backend tests scripts migrations
       - run: alembic upgrade head
         env:
           DATABASE_URL: postgresql+psycopg://fieldwork:test-only@localhost:5432/fieldwork
@@ -36,6 +38,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
       - run: npm run build
       - run: npm audit --audit-level=high

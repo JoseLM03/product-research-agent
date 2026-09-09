@@ -12,5 +12,4 @@ __pycache__
 .pytest_cache
 audit.json
 tests
-scripts
 docs

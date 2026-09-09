@@ -1,5 +1,6 @@
 from alembic import context
 from sqlalchemy import create_engine, pool
+
 from backend.config import Settings
 from backend.db import Base
 

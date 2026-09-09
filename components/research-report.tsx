@@ -1,26 +1,315 @@
 'use client';
 import { useState } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogFooter } from '@/components/ui/alert-dialog';
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogCancel,
+  AlertDialogAction,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
 import { Claim, Detail, exportReport } from '@/lib/api';
 
-export function ResearchReport({detail,onDelete}:{detail:Detail;onDelete:()=>Promise<void>}) {
- const [tab,setTab]=useState<string>('report');
- const [confirm,setConfirm]=useState(false);
- const [deleting,setDeleting]=useState(false);
- const report=detail.report;
- const active=['queued','running'].includes(detail.status);
- function citations(claim:Claim) { return <p>{claim.text}<span className="citations">{claim.citations.map((c,i)=><button className="citation-button" key={i} title={c.quote} onClick={()=>{setTab('sources');setTimeout(()=>document.getElementById(c.source_id)?.scrollIntoView({block:'center'}),50);}}>{c.source_id}</button>)}</span></p>; }
- return <section className="report" aria-label="Research result"><div className="report-head"><div><span className="status">{active&&<span className="spinner"/>}{detail.status}</span><h2>{detail.idea}</h2></div><div className="actions">{report&&<button className="secondary" onClick={()=>exportReport(detail)}>Export JSON</button>}{!active&&<AlertDialog open={confirm} onOpenChange={setConfirm}><AlertDialogTrigger className="secondary">Delete</AlertDialogTrigger><AlertDialogContent className="bg-white"><AlertDialogTitle>Delete this research?</AlertDialogTitle><AlertDialogDescription>The report and activity log will be removed. Export a copy first if you need one.</AlertDialogDescription><AlertDialogFooter><AlertDialogCancel>Keep research</AlertDialogCancel><AlertDialogAction disabled={deleting} onClick={async()=>{setDeleting(true);try{await onDelete();setConfirm(false);}finally{setDeleting(false);}}}>Delete research</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>}</div></div>
- {detail.error&&<p role="alert" className="notice error">{detail.error}</p>}
- {active&&<p role="status">{detail.status==='queued'?'Waiting for the research worker.':'The agent is gathering and examining evidence. This can take several minutes.'}</p>}
- {detail.status==='partial'&&<p className="notice">This report is incomplete. Review the limitations and failed tool calls before using it.</p>}
- <Tabs value={tab} onValueChange={value=>setTab(String(value))}><TabsList className="report-tabs"><TabsTrigger value="report">Report</TabsTrigger><TabsTrigger value="sources">Sources {report?`(${report.sources.length})`:''}</TabsTrigger><TabsTrigger value="activity">Activity</TabsTrigger></TabsList>
- <TabsContent value="report" className="report-body">{report?<><div className="assess"><span className="eyebrow">LIMITED EVIDENCE</span><h3>{report.assessment.replaceAll('_',' ')}</h3>{citations(report.rationale)}</div><h3>Product overview</h3>{citations(report.overview)}<h3>Market observations</h3>{report.observations.length?report.observations.map((c,i)=><div key={i}>{citations(c)}</div>):<p>No supported market observations were returned.</p>}<h3>Competitor observations</h3>{report.competitors.length?report.competitors.map((c,i)=><div key={i}>{citations(c)}</div>):<p>No supported competitor observations were returned.</p>}
- <h3>Price mentions in sources</h3><p className="muted">Unverified snippet excerpts. These may describe accessories, shipping, or outdated offers.</p>{report.price_mentions.length?<ul>{report.price_mentions.map((p,i)=><li key={i}>{p.text} <button className="citation-button" onClick={()=>setTab('sources')}>{p.source_id}</button></li>)}</ul>:<p>No explicit price mentions were found.</p>}
- {(['opportunities','risks'] as const).map(section=><div key={section}><h3>{section==='opportunities'?'Opportunity hypotheses':'Risk hypotheses'}</h3>{report[section].length?report[section].map((h,i)=><div className="hypothesis" key={i}><p>{h.text}</p><p><strong>Validate:</strong> {h.validation_step}</p></div>):<p>No hypotheses returned.</p>}</div>)}
- <h3>Cost scenario</h3>{report.calculation&&!report.calculation.error?<><p>{report.calculation.basis}</p><div className="calculation"><div><span>Contribution / unit</span><strong>{report.calculation.currency} {report.calculation.contribution_per_unit}</strong></div><div><span>Contribution margin</span><strong>{report.calculation.contribution_margin_percent}%</strong></div></div><details><summary>View your inputs and calculation</summary><ul>{Object.entries(report.calculation.inputs).map(([key,value])=><li key={key}>{key.replaceAll('_',' ')}: {value}</li>)}</ul><p>Fees: {report.calculation.fees}. Contribution = sale price − unit cost − shipping − other costs − fees.</p></details></>:<p>{detail.inputs.costs?'The agent did not complete a margin calculation.':'No costs supplied. Margins have not been estimated.'}</p>}
- <h3>Limitations</h3><ul>{report.limitations.map((item,i)=><li key={i}>{item}</li>)}</ul></>:<p className="muted">{active?'The report will appear after the agent submits validated findings.':'No validated report was produced. See Activity for completed steps and errors.'}</p>}</TabsContent>
- <TabsContent value="sources" className="report-body"><p className="muted">Retrieved search snippets, not full-page verification. Source text is untrusted; inspect the original before relying on a claim.</p><div className="sources">{report?.sources.map(source=><article className="source" id={source.id} key={source.id}><span className="eyebrow">{source.id}</span><h3><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title} ↗</a></h3><p>{source.snippet}</p><small>Retrieved {new Date(source.retrieved_at).toLocaleString()} · Query: {source.query}</small></article>)??<p>No report sources available yet.</p>}</div></TabsContent>
- <TabsContent value="activity" className="report-body"><p className="muted">Tool execution events. Private model reasoning is not recorded.</p><ol className="timeline">{detail.events.map(event=><li key={event.id}><span>{new Date(event.created_at*1000).toLocaleTimeString()}</span><strong>{event.tool.replaceAll('_',' ')}</strong> · {event.status}<div>{event.detail}</div></li>)}</ol>{!detail.events.length&&<p>No tool activity yet.</p>}</TabsContent></Tabs></section>;
+export function ResearchReport({
+  detail,
+  onDelete,
+}: {
+  detail: Detail;
+  onDelete: () => Promise<void>;
+}) {
+  const [tab, setTab] = useState<string>('report');
+  const [confirm, setConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const report = detail.report;
+  const active = ['queued', 'running'].includes(detail.status);
+  function citations(claim: Claim) {
+    return (
+      <p>
+        {claim.text}
+        <span className="citations">
+          {claim.citations.map((c, i) => (
+            <button
+              className="citation-button"
+              key={i}
+              title={c.quote}
+              onClick={() => {
+                setTab('sources');
+                setTimeout(
+                  () =>
+                    document
+                      .getElementById(c.source_id)
+                      ?.scrollIntoView({ block: 'center' }),
+                  50,
+                );
+              }}
+            >
+              {c.source_id}
+            </button>
+          ))}
+        </span>
+      </p>
+    );
+  }
+  return (
+    <section className="report" aria-label="Research result">
+      <div className="report-head">
+        <div>
+          <span className="status">
+            {active && <span className="spinner" />}
+            {detail.status}
+          </span>
+          <h2>{detail.idea}</h2>
+        </div>
+        <div className="actions">
+          {report && (
+            <button className="secondary" onClick={() => exportReport(detail)}>
+              Export JSON
+            </button>
+          )}
+          {!active && (
+            <AlertDialog open={confirm} onOpenChange={setConfirm}>
+              <AlertDialogTrigger className="secondary">
+                Delete
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-white">
+                <AlertDialogTitle>Delete this research?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The report and activity log will be removed. Export a copy
+                  first if you need one.
+                </AlertDialogDescription>
+                {deleteError && <p role="alert">{deleteError}</p>}
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep research</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={deleting}
+                    onClick={async () => {
+                      setDeleting(true);
+                      setDeleteError('');
+                      try {
+                        await onDelete();
+                        setConfirm(false);
+                      } catch (error) {
+                        setDeleteError(
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not delete this research.',
+                        );
+                      } finally {
+                        setDeleting(false);
+                      }
+                    }}
+                  >
+                    Delete research
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      </div>
+      {detail.error && (
+        <p role="alert" className="notice error">
+          {detail.error}
+        </p>
+      )}
+      {active && (
+        <output>
+          {detail.status === 'queued'
+            ? 'Waiting for the research worker.'
+            : 'The agent is gathering and examining evidence. This can take several minutes.'}
+        </output>
+      )}
+      {detail.status === 'partial' && (
+        <p className="notice">
+          This report is incomplete. Review the limitations and failed tool
+          calls before using it.
+        </p>
+      )}
+      <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>
+        <TabsList className="report-tabs">
+          <TabsTrigger value="report">Report</TabsTrigger>
+          <TabsTrigger value="sources">
+            Sources {report ? `(${report.sources.length})` : ''}
+          </TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </TabsList>
+        <TabsContent value="report" className="report-body">
+          {report ? (
+            <>
+              <div className="assess">
+                <span className="eyebrow">LIMITED EVIDENCE</span>
+                <h3>{report.assessment.replaceAll('_', ' ')}</h3>
+                {citations(report.rationale)}
+              </div>
+              <h3>Product overview</h3>
+              {citations(report.overview)}
+              <h3>Market observations</h3>
+              {report.observations.length ? (
+                report.observations.map((c, i) => (
+                  <div key={i}>{citations(c)}</div>
+                ))
+              ) : (
+                <p>No supported market observations were returned.</p>
+              )}
+              <h3>Competitor observations</h3>
+              {report.competitors.length ? (
+                report.competitors.map((c, i) => (
+                  <div key={i}>{citations(c)}</div>
+                ))
+              ) : (
+                <p>No supported competitor observations were returned.</p>
+              )}
+              <h3>Price mentions in sources</h3>
+              <p className="muted">
+                Unverified snippet excerpts. These may describe accessories,
+                shipping, or outdated offers.
+              </p>
+              {report.price_mentions.length ? (
+                <ul>
+                  {report.price_mentions.map((p, i) => (
+                    <li key={i}>
+                      {p.text}{' '}
+                      <button
+                        className="citation-button"
+                        onClick={() => setTab('sources')}
+                      >
+                        {p.source_id}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No explicit price mentions were found.</p>
+              )}
+              {(['opportunities', 'risks'] as const).map((section) => (
+                <div key={section}>
+                  <h3>
+                    {section === 'opportunities'
+                      ? 'Opportunity hypotheses'
+                      : 'Risk hypotheses'}
+                  </h3>
+                  {report[section].length ? (
+                    report[section].map((h, i) => (
+                      <div className="hypothesis" key={i}>
+                        <p>{h.text}</p>
+                        <p>
+                          <strong>Validate:</strong> {h.validation_step}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No hypotheses returned.</p>
+                  )}
+                </div>
+              ))}
+              <h3>Cost scenario</h3>
+              {report.calculation && !report.calculation.error ? (
+                <>
+                  <p>{report.calculation.basis}</p>
+                  <div className="calculation">
+                    <div>
+                      <span>Contribution / unit</span>
+                      <strong>
+                        {report.calculation.currency}{' '}
+                        {report.calculation.contribution_per_unit}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Contribution margin</span>
+                      <strong>
+                        {report.calculation.contribution_margin_percent}%
+                      </strong>
+                    </div>
+                  </div>
+                  <details>
+                    <summary>View your inputs and calculation</summary>
+                    <ul>
+                      {Object.entries(report.calculation.inputs).map(
+                        ([key, value]) => (
+                          <li key={key}>
+                            {key.replaceAll('_', ' ')}: {value}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                    <p>
+                      Fees: {report.calculation.fees}. Contribution = sale price
+                      − unit cost − shipping − other costs − fees.
+                    </p>
+                  </details>
+                </>
+              ) : (
+                <p>
+                  {detail.inputs.costs
+                    ? 'The agent did not complete a margin calculation.'
+                    : 'No costs supplied. Margins have not been estimated.'}
+                </p>
+              )}
+              <h3>Limitations</h3>
+              <ul>
+                {report.limitations.map((item, i) => (
+                  <li key={i}>{item}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="muted">
+              {active
+                ? 'The report will appear after the agent submits validated findings.'
+                : 'No validated report was produced. See Activity for completed steps and errors.'}
+            </p>
+          )}
+        </TabsContent>
+        <TabsContent value="sources" className="report-body">
+          <p className="muted">
+            Retrieved search snippets, not full-page verification. Source text
+            is untrusted; inspect the original before relying on a claim.
+          </p>
+          <div className="sources">
+            {report?.sources.map((source) => (
+              <article className="source" id={source.id} key={source.id}>
+                <span className="eyebrow">{source.id}</span>
+                <h3>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {source.title} ↗
+                  </a>
+                </h3>
+                <p>{source.snippet}</p>
+                <small>
+                  Retrieved {new Date(source.retrieved_at).toLocaleString()} ·
+                  Query: {source.query}
+                </small>
+              </article>
+            )) ?? <p>No report sources available yet.</p>}
+          </div>
+        </TabsContent>
+        <TabsContent value="activity" className="report-body">
+          <p className="muted">
+            Tool execution events. Private model reasoning is not recorded.
+          </p>
+          <ol className="timeline">
+            {detail.events.map((event) => (
+              <li key={event.id}>
+                <span>
+                  {new Date(event.created_at * 1000).toLocaleTimeString()}
+                </span>
+                <strong>{event.tool.replaceAll('_', ' ')}</strong> ·{' '}
+                {event.status}
+                <div>{event.detail}</div>
+              </li>
+            ))}
+          </ol>
+          {!detail.events.length && <p>No tool activity yet.</p>}
+        </TabsContent>
+      </Tabs>
+    </section>
+  );
 }

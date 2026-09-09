@@ -1,14 +1,15 @@
 from decimal import Decimal
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class StrictModel(BaseModel):
-    model_config = ConfigDict(extra='forbid', str_strip_whitespace=True)
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class Costs(StrictModel):
-    currency: Literal['USD', 'EUR', 'GBP', 'CAD', 'AUD'] = 'USD'
+    currency: Literal["USD", "EUR", "GBP", "CAD", "AUD"] = "USD"
     sale_price: Decimal = Field(gt=0, le=1000000, max_digits=12, decimal_places=2)
     unit_cost: Decimal = Field(ge=0, le=1000000, max_digits=12, decimal_places=2)
     shipping: Decimal = Field(ge=0, le=1000000, max_digits=12, decimal_places=2)
@@ -26,7 +27,7 @@ class SearchArgs(StrictModel):
 
 
 class EvidenceArgs(StrictModel):
-    source_id: str = Field(pattern=r'^S[1-9][0-9]?$')
+    source_id: str = Field(pattern=r"^S[1-9][0-9]?$")
 
 
 class NoArgs(StrictModel):
@@ -34,7 +35,7 @@ class NoArgs(StrictModel):
 
 
 class Citation(StrictModel):
-    source_id: str = Field(pattern=r'^S[1-9][0-9]?$')
+    source_id: str = Field(pattern=r"^S[1-9][0-9]?$")
     quote: str = Field(min_length=12, max_length=500)
 
 
@@ -54,13 +55,13 @@ class ReportDraft(StrictModel):
     competitors: list[Claim] = Field(max_length=8)
     opportunities: list[Hypothesis] = Field(max_length=5)
     risks: list[Hypothesis] = Field(max_length=5)
-    assessment: Literal['worth_further_research', 'mixed_signals', 'insufficient_evidence']
+    assessment: Literal["worth_further_research", "mixed_signals", "insufficient_evidence"]
     rationale: Claim
     limitations: list[str] = Field(min_length=1, max_length=10)
 
-    @field_validator('limitations')
+    @field_validator("limitations")
     @classmethod
     def bounded_limitations(cls, value):
         if any(not x.strip() or len(x) > 500 for x in value):
-            raise ValueError('Limitations must contain 1–500 characters')
+            raise ValueError("Limitations must contain 1–500 characters")
         return value
