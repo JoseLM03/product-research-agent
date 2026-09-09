@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+node_modules
+dist
+.vinext
+.wrangler
+work
+outputs
+*.db*
+__pycache__
+.pytest_cache
+audit.json
+tests
+scripts
+docs
