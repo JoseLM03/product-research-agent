@@ -65,3 +65,26 @@ class ReportDraft(StrictModel):
         if any(not x.strip() or len(x) > 500 for x in value):
             raise ValueError("Limitations must contain 1–500 characters")
         return value
+
+
+class CitationReference(StrictModel):
+    source_id: str = Field(pattern=r"^S[1-9][0-9]?$")
+    excerpt: int = Field(
+        ge=1,
+        le=100,
+        strict=True,
+        description="One-based excerpt number from this source. The server supplies the exact quote.",
+    )
+
+
+class ReferencedClaim(Claim):
+    citations: list[CitationReference] = Field(min_length=1, max_length=5)
+
+
+class ReportSubmission(ReportDraft):
+    """Native tool input; the stored/public ReportDraft still contains exact quotes."""
+
+    overview: ReferencedClaim
+    observations: list[ReferencedClaim] = Field(max_length=8)
+    competitors: list[ReferencedClaim] = Field(max_length=8)
+    rationale: ReferencedClaim

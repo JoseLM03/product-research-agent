@@ -18,7 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import Settings
 from .db import Admission, AdmissionLock, Base, Job, ToolEvent, database
-from .providers import BraveSearch, Ollama
+from .providers import Ollama, TavilySearch
 from .schemas import ResearchInput
 from .worker import worker
 
@@ -52,7 +52,7 @@ def create_app(settings=None, *, model=None, search=None):
                         sessions,
                         settings,
                         model or Ollama(client, settings),
-                        search or BraveSearch(client, settings.brave_api_key),
+                        search or TavilySearch(client, settings.tavily_api_key),
                     )
                 )
                 if settings.worker_enabled
@@ -173,7 +173,7 @@ def create_app(settings=None, *, model=None, search=None):
             "retention_days": settings.retention_days,
             "message": "Research is enabled. Provider connectivity is checked when a task runs."
             if settings.configured
-            else "Research is disabled until the operator configures Ollama, BRAVE_API_KEY, and RESEARCH_ENABLED.",
+            else "Research is disabled until the operator configures Ollama, TAVILY_API_KEY, and RESEARCH_ENABLED.",
             "daily_limit": settings.daily_session_limit,
         }
 

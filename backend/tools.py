@@ -1,11 +1,22 @@
 import html
 import ipaddress
+import logging
 import re
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from urllib.parse import urlsplit
 
-from .schemas import EvidenceArgs, NoArgs, ReportDraft, SearchArgs
+from .schemas import EvidenceArgs, NoArgs, ReportDraft, ReportSubmission, SearchArgs
+
+log = logging.getLogger("fieldwork.tools")
+
+
+class CitationError(ValueError):
+    """Safe, server-generated repair guidance with no source or model prose."""
+
+    def __init__(self, message, source_id):
+        super().__init__(message)
+        self.source_id = source_id
 
 
 def safe_url(value):
@@ -74,24 +85,71 @@ SPECS = {
         "Calculate contribution margin using ONLY the original user-supplied costs. No invented inputs.",
     ),
     "submit_report": (
-        ReportDraft,
-        "Submit the final structured report with exact supporting quotes from collected snippets. Claims require citations. Opportunities and risks are hypotheses with validation steps.",
+        ReportSubmission,
+        "Submit the final structured report with source_id and one-based excerpt references. Claims require citations; the server resolves exact quotes. Opportunities and risks are hypotheses with validation steps.",
     ),
 }
 
 
-def definitions():
+def tool_schema(model):
+    """Inline local Pydantic refs: Ollama's tool properties do not retain $ref.
+
+    Keep every constraint; the original Pydantic models still validate calls.
+    These server-owned schemas are non-recursive.
+    """
+    schema = model.model_json_schema()
+    refs = schema.get("$defs", {})
+
+    def expand(value):
+        if isinstance(value, list):
+            return [expand(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if "$ref" in value:
+            name = value["$ref"].removeprefix("#/$defs/")
+            value = {**refs[name], **{k: v for k, v in value.items() if k != "$ref"}}
+        return {key: expand(item) for key, item in value.items() if key != "$defs"}
+
+    return expand(schema)
+
+
+def definitions(names=None):
+    if names is None:
+        names = SPECS.keys()
     return [
         {
             "type": "function",
             "function": {
                 "name": name,
                 "description": description,
-                "parameters": schema.model_json_schema(),
+                "parameters": tool_schema(schema),
             },
         }
         for name, (schema, description) in SPECS.items()
+        if name in names
     ]
+
+
+def citation_view(source):
+    """Present copyable spans, never generated summaries or repaired citations."""
+    snippet = source["snippet"]
+    excerpts = []
+    start = 0
+    while start < len(snippet):
+        end = min(start + 240, len(snippet))
+        if end < len(snippet):
+            boundary = snippet.rfind(" ", start + 12, end)
+            if boundary != -1:
+                end = boundary
+        excerpt = snippet[start:end].strip()
+        if excerpt:
+            excerpts.append(excerpt)
+        start = end
+    return {
+        "id": source["id"],
+        "title": source["title"],
+        "excerpts": [{"index": i + 1, "text": text} for i, text in enumerate(excerpts)],
+    }
 
 
 class ResearchTools:
@@ -133,6 +191,12 @@ class ResearchTools:
                 }
                 self.sources[source_id] = source
                 found.append(source)
+            log.info(
+                "search_results tool=%s provider_rows=%s accepted_sources=%s",
+                name,
+                len(rows),
+                len(found),
+            )
             return {
                 "sources": found,
                 "limitation": "Search snippets may be outdated or incomplete. No sales volume or demand is established.",
@@ -146,15 +210,40 @@ class ResearchTools:
             return self.calculation
         raise ValueError("Unknown tool")
 
+    def resolve_references(self, submission):
+        data = submission.model_dump(mode="json")
+        claims = [data["overview"], data["rationale"], *data["observations"], *data["competitors"]]
+        for claim in claims:
+            for citation in claim["citations"]:
+                source_id = citation["source_id"]
+                source = self.sources.get(source_id)
+                excerpts = citation_view(source)["excerpts"] if source else []
+                index = citation.pop("excerpt") - 1
+                if index < 0 or index >= len(excerpts) or len(excerpts[index]["text"]) < 12:
+                    raise CitationError(
+                        f"Invalid excerpt reference for {source_id}. Select an available excerpt with at least 12 characters.",
+                        source_id,
+                    )
+                citation["quote"] = excerpts[index]["text"]
+        return ReportDraft.model_validate(data)
+
     def validate_report(self, report):
+        if isinstance(report, ReportSubmission):
+            report = self.resolve_references(report)
         if not self.sources:
             raise ValueError("No retrieved evidence. Search before submitting a report.")
-        for claim in [report.overview, report.rationale, *report.observations, *report.competitors]:
-            for citation in claim.citations:
+        claims = [("overview", report.overview), ("rationale", report.rationale)]
+        claims += [(f"observations[{i}]", claim) for i, claim in enumerate(report.observations)]
+        claims += [(f"competitors[{i}]", claim) for i, claim in enumerate(report.competitors)]
+        for path, claim in claims:
+            for index, citation in enumerate(claim.citations):
                 source = self.sources.get(citation.source_id)
                 if not source or citation.quote not in source["snippet"]:
-                    raise ValueError(
-                        "Every citation must reference a collected source and quote an exact substring of its snippet."
+                    raise CitationError(
+                        f"{path}.citations[{index}] does not exactly quote {citation.source_id}. "
+                        "Copy an exact substring from that source's snippet or correct the source ID. "
+                        "Submit the complete report again with contiguous, verbatim quotes.",
+                        citation.source_id,
                     )
         data = report.model_dump(mode="json")
         data["sources"] = list(self.sources.values())

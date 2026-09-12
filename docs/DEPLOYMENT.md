@@ -14,7 +14,7 @@ Use one replica and `--workers 1`. Do not use short-lived serverless request fun
 
 Set `ENVIRONMENT=production`, a PostgreSQL `DATABASE_URL`, and `APP_ORIGIN=https://YOUR_HOST`. Generate `SESSION_SECRET` with `python -c "import secrets; print(secrets.token_urlsafe(48))"` and store it in the hosting secret manager. Keep it stable across deploys. URI-encode special characters in the database password.
 
-Set `OLLAMA_URL` to a private endpoint and `OLLAMA_MODEL` to a model already deployed there. Configure `BRAVE_API_KEY` and provider-side spend controls before setting `RESEARCH_ENABLED=true`. Initially leave it false. Set conservative global/session/IP budgets. Keep `WORKER_ENABLED=true`.
+Set `OLLAMA_URL` to a private endpoint and `OLLAMA_MODEL` to a model already deployed there. Configure `TAVILY_API_KEY` and provider-side spend controls before setting `RESEARCH_ENABLED=true`. Initially leave it false. Set conservative global/session/IP budgets. Keep `WORKER_ENABLED=true`.
 
 The app ignores `X-Forwarded-For` and the Docker command disables proxy headers. Behind a proxy, all users may share the proxy's IP quota; the global quota remains the hard application admission cap. Configure trusted-proxy handling intentionally if per-client IP quotas are needed. Never trust arbitrary forwarded headers from the public internet.
 

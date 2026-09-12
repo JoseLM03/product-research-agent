@@ -20,7 +20,7 @@ The Python tests emitted one upstream deprecation warning from Starlette's use o
 ## Not verified / unsuccessful
 
 - **Real Ollama workflow:** the opt-in smoke test against the installed local `qwen3.5:9b` model timed out before returning a usable result. That test used clearly synthetic search evidence and would not establish real-market research even if it passed. Native tool protocol and multi-step orchestration passed deterministic tests.
-- **Real Brave research:** no authorized search key was provided. No live market report is claimed. There is no production mock fallback.
+- **Real Tavily research:** no authorized search key was provided. No live market report is claimed. There is no production mock fallback.
 - **Docker and PostgreSQL runtime:** Docker was unavailable and no PostgreSQL instance was provisioned. Docker/Compose and PostgreSQL migration CI are prepared but unexecuted here.
 - **Remote CI:** workflow configured, not run on a remote repository.
 - **Deployment:** not performed; no public URL or hosting resource exists for this application.
@@ -38,3 +38,8 @@ Use the README commands with Node 22 and the new local Python `.venv`. For the r
 ```
 
 Live-provider and production acceptance steps are in `DEPLOYMENT.md`. Configure providers before relying on the product for actual research; review cited claims manually.
+
+
+## September 12 live-agent diagnosis
+
+The current Desktop project passed 74 Python tests, 7 frontend tests, frontend typecheck/lint, and Ruff checks. Three real model/search runs completed in 22.431, 15.335, and 14.292 seconds, with 10 sources and no report repair in each. These used the real HTTP API routes through TestClient, a real isolated SQLite queue/worker, Ollama, Tavily, and persisted reports. They do not establish browser QA or semantic correctness of every generated claim. See `RESEARCH_DIAGNOSIS.md` for the failure evidence, model comparison, exact per-call timings, and remaining V1 gate. Historical results above refer to the earlier handoff.

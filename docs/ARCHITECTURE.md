@@ -13,18 +13,18 @@ No LangChain, vector database, browser scraper, broker, or separate job service 
 3. Receive native `message.tool_calls`; free text alone never constitutes a completed report.
 4. Validate the tool name and arguments against the registry's Pydantic model.
 5. Execute the selected tool and append a `role=tool`, `tool_name=...` observation to the conversation.
-6. Allow additional model-selected calls until a valid `submit_report` call, eight turns, ten calls by default, or the job deadline.
+6. Allow additional model-selected calls until a valid `submit_report` call, eight turns, ten research calls by default, or the job deadline. `submit_report` is exempt from the research-call budget; only that tool is offered once the budget is exhausted.
 7. Validate all citations against the server-owned source ledger, attach sources and deterministic calculation/price fields, and persist the result.
 
-Tool errors are returned as observations so the model can adapt. Invalid submissions can be repaired within the same budget, and failed attempts remain limitations. Arbitrary code, shell commands, filesystem access, and arbitrary URL fetching are not agent capabilities. The app does not expose or persist model chain-of-thought.
+Tool errors are returned as observations so the model can adapt. Invalid submissions can be repaired within the planning limit, and failed attempts remain limitations. For a standalone rejected submission, the model receives the latest repair guidance instead of accumulating invalid drafts. Search observations omit repeated metadata and expose deterministic numbered excerpts; the original source ledger is unchanged. Arbitrary code, shell commands, filesystem access, and arbitrary URL fetching are not agent capabilities. The app does not expose or persist model chain-of-thought.
 
 ## Every agent tool
 
-- **`search_web(query)`**: Brave web search, up to five results per call. Adds safe HTTP(S) source links, title, snippet, query, and retrieval timestamp to the task-local evidence ledger. No webpage fetching or scraping.
+- **`search_web(query)`**: Tavily web search, up to five results per call. Adds safe HTTP(S) source links, title, snippet, query, and retrieval timestamp to the task-local evidence ledger. No webpage fetching or scraping.
 - **`search_competitors(query)`**: uses the same provider with a competitor/retail-oriented query suffix. A narrow product-focused affordance, not an independent dataset. Results do not establish competitor sales or demand.
 - **`inspect_evidence(source_id)`**: returns the already-retrieved snippet and provenance. It cannot invent a source or retrieve a new arbitrary URL.
 - **`calculate_margin()`**: no model-controlled numeric arguments. Reads the original validated cost inputs and calculates fees, contribution per unit, and contribution-margin percentage using Decimal and half-up rounding. Missing costs produce an explicit limitation.
-- **`submit_report(report)`**: validates the strict report schema and every quote/source reference. This is the loop's terminal tool; it does not send a user-authored report to any third party.
+- **`submit_report(report)`**: accepts the strict `ReportSubmission` schema with source IDs and one-based excerpt numbers. The server rejects unavailable references, resolves exact original text, and applies the existing `ReportDraft` and quote/source validation before persistence. The public report still contains full quotes. This is the loop's terminal tool; it does not send a user-authored report to any third party.
 
 The optional browser `stage_research_idea` WebMCP affordance only fills the brief. It does not start research or spend provider resources. It is separate from the backend research agent. Unsupported browsers ignore it.
 
@@ -56,3 +56,5 @@ The worker is deliberately configured for one process/replica. SQL claims preven
 ## Deliberate limits
 
 No account system: signed browser identity meets private browser history without password management. No full-page retrieval: avoiding arbitrary network fetching removes a major SSRF and scraping surface. No financial predictions: explicit cost scenarios are sufficient to demonstrate a deterministic tool. No auto-replay of crashed work: this avoids duplicate provider usage after uncertain failures.
+
+Native tool schemas inline Pydantic references because Ollama 0.34.0 does not retain `$ref` in tool properties. All server-side constraints remain. See `RESEARCH_DIAGNOSIS.md` for measured context and generation behavior.

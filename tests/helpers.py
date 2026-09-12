@@ -35,6 +35,22 @@ def draft(source="S1", quote="Fixture Grinder A has replaceable burrs"):
 
 
 def call(name, arguments):
+    if name == "submit_report":
+        import copy
+
+        arguments = copy.deepcopy(arguments)
+        for claim in [
+            arguments["overview"],
+            arguments["rationale"],
+            *arguments["observations"],
+            *arguments["competitors"],
+        ]:
+            for citation in claim["citations"]:
+                if "quote" in citation:
+                    quote = citation.pop("quote")
+                    citation["excerpt"] = (
+                        1 if quote == "Fixture Grinder A has replaceable burrs" else 99
+                    )
     return {
         "role": "assistant",
         "content": "",

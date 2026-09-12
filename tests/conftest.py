@@ -12,7 +12,7 @@ def app(tmp_path):
             database_url=f"sqlite:///{tmp_path / 'test.db'}",
             worker_enabled=False,
             research_enabled=True,
-            brave_api_key="test-only-not-a-key",
+            tavily_api_key="test-only-not-a-key",
             app_origin="http://testserver",
         )
     )

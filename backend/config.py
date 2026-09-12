@@ -11,11 +11,11 @@ class Settings(BaseSettings):
     session_secret: str = "development-only-change-before-deploying"
     app_origin: str = "http://127.0.0.1:3000"
     ollama_url: str = "http://127.0.0.1:11434"
-    ollama_model: str = "qwen3:8b"
-    brave_api_key: str = ""
+    ollama_model: str = "qwen3.5:4b"
+    tavily_api_key: str = ""
     research_enabled: bool = False
     daily_global_limit: int = Field(default=20, ge=1, le=1000)
-    daily_session_limit: int = Field(default=5, ge=1, le=100)
+    daily_session_limit: int = Field(default=50, ge=1, le=100)
     daily_ip_limit: int = Field(default=10, ge=1, le=200)
     max_tool_calls: int = Field(default=10, ge=2, le=20)
     job_timeout_seconds: int = Field(default=300, ge=10, le=600)
@@ -39,4 +39,4 @@ class Settings(BaseSettings):
 
     @property
     def configured(self):
-        return self.research_enabled and bool(self.brave_api_key)
+        return self.research_enabled and bool(self.tavily_api_key)

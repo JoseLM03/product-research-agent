@@ -1,8 +1,8 @@
-# Fieldwork — AI-Powered E-Commerce Product Research Agent
+# Fieldwork â€” AI-Powered E-Commerce Product Research Agent
 
 Fieldwork is a full-stack research workspace for investigating product ideas. One AI agent chooses research tools, observes their results, makes follow-up calls, and submits a validated report with source quotes. Research runs as a durable SQL job; the browser shows its status, tool activity, findings, and limitations.
 
-**Status:** implemented and locally tested; not deployed. Deterministic tests exercise the complete API → SQL queue → worker → tool loop → persisted report flow with explicitly synthetic provider fixtures. Live Brave research has not been verified because no search credentials were supplied. The installed local Ollama model timed out during its smoke test. Do not describe this as a verified live research service until the live acceptance steps below pass.
+**Status:** locally tested; not deployed. The September 12 live diagnosis completed three real Ollama/Tavily API-to-worker-to-persisted-report runs in 22.431, 15.335, and 14.292 seconds on this laptop. Structural and citation-reference validation passed; human review still found overbroad claims and imperfect claim-to-excerpt alignment. This is not a verified market-intelligence service. See [research diagnosis](docs/RESEARCH_DIAGNOSIS.md) for reproducible commands, model selection, and limitations.
 
 There are no sample market reports, fake users, invented metrics, or silent mock-provider fallbacks in the application. Without provider configuration, the UI clearly disables research. Existing research is private to a signed browser session.
 
@@ -10,7 +10,7 @@ There are no sample market reports, fake users, invented metrics, or silent mock
 
 - Accepts a product idea and optional user-supplied cost scenario.
 - Runs a single agent using native Ollama function/tool calls.
-- Searches legitimate Brave Search API results for market context and competitors.
+- Searches legitimate Tavily Search API results for market context and competitors.
 - Requires factual report sections to cite collected source IDs and exact snippet quotes.
 - Separates opportunity/risk hypotheses from observations and asks how to validate each hypothesis.
 - Extracts price mentions from source text without allowing the model to invent numerical observations.
@@ -35,7 +35,7 @@ flowchart LR
   Agent --> Model[Ollama native tool calls]
   Model --> Agent
   Agent --> Tools[Validated tool registry]
-  Tools --> Search[Brave Search API]
+  Tools --> Search[Tavily Search API]
   Tools --> Calc[Decimal cost calculation]
   Tools --> Agent
   Agent --> Report[Validate quotes and report]
@@ -55,7 +55,7 @@ backend/
   db.py                      SQL models and connection setup
   worker.py                  Queue consumption, deadlines, retention, recovery
   agent.py                   Native tool-call / observation loop
-  providers.py               Ollama and Brave adapters
+  providers.py               Ollama and Tavily adapters
   schemas.py                 Strict domain and report contracts
   tools.py                   Tools, evidence ledger, decimal calculations
 migrations/                  Alembic schema history
@@ -112,11 +112,11 @@ To run the built app as a single service, run `npm run build`, set `APP_ORIGIN=h
 ### Enable real research
 
 1. Run a private Ollama server and choose a locally available model with native tool support. Set `OLLAMA_MODEL` to its exact model name; Fieldwork does not download models automatically. Avoid cloud-model aliases unless you intentionally authorize their account usage.
-2. Configure your own `BRAVE_API_KEY` in the ignored `.env` file. Check the provider's plan, terms, and account-level limits before enabling requests. No key is supplied by this repository.
+2. Configure your own `TAVILY_API_KEY` in the ignored `.env` file. Check the provider's plan, terms, and account-level limits before enabling requests. No key is supplied by this repository.
 3. Set `RESEARCH_ENABLED=true` and restart the Python service. This authorizes provider requests within the app's configured limits. The UI checks configuration, not provider connectivity; a task exposes connectivity failures.
 4. Start one focused research task, inspect its tool activity, and open the cited sources. Confirm that the report quotes match the evidence and that the observations follow from those quotes.
 
-Native tool calling follows [Ollama's tool-calling interface](https://docs.ollama.com/capabilities/tool-calling). Search uses the [Brave web search API](https://api-dashboard.search.brave.com/api-reference/web/search/get).
+Native tool calling follows [Ollama's tool-calling interface](https://docs.ollama.com/capabilities/tool-calling). Search uses the [Tavily Search API](https://docs.tavily.com/documentation/api-reference/endpoint/search) directly through `httpx`. Requests use basic general search with up to five results, safe search enabled, automatic parameters disabled, and no generated answer, raw page content, or images. This works with free-tier credits; account credit limits still apply.
 
 ## Environment variables
 
@@ -127,8 +127,8 @@ All application settings live in `backend/config.py`; `.env.example` documents d
 - `SESSION_SECRET`: generate a stable random value of at least 32 characters for deployment. Rotating it invalidates browser access to old history.
 - `APP_ORIGIN`: the exact public scheme/host/port, without a path. Used for mutation-origin checks.
 - `OLLAMA_URL`: private backend-controlled inference endpoint; defaults to `http://127.0.0.1:11434`.
-- `OLLAMA_MODEL`: exact model name, default `qwen3:8b`. This model was not installed or downloaded by the application.
-- `BRAVE_API_KEY`: server-only search credential; empty by default.
+- `OLLAMA_MODEL`: exact model name, default `qwen3.5:4b`. This model was not installed or downloaded by the application.
+- `TAVILY_API_KEY`: server-only search credential; empty by default.
 - `RESEARCH_ENABLED`: defaults to `false`. Disables new admissions and new queue claims when false; an already-running request may finish.
 - `DAILY_GLOBAL_LIMIT`, `DAILY_SESSION_LIMIT`, `DAILY_IP_LIMIT`: defaults `20`, `5`, `10`. UTC-day SQL admission quotas. Deleting reports does not refund quota.
 - `MAX_TOOL_CALLS`: default `10`, including final report submission. The loop also has an eight-model-turn ceiling.
@@ -176,3 +176,7 @@ Other current constraints: one API process/worker; no automatic retry of crashed
 The repository includes a Dockerfile, PostgreSQL Compose example, migrations, CI, and [deployment instructions](docs/DEPLOYMENT.md). No deployment or public URL has been created. No external account credentials were used, no infrastructure was purchased, and the project has not been migrated to WSL.
 
 Before inviting users: pass a real-provider acceptance run, test PostgreSQL and the container on the intended host, configure HTTPS/backups/provider spend caps, and perform keyboard/mobile/browser QA. Then prioritize claim-evidence evaluation, useful independent sources, cancellation, and established OIDC authentication if cross-device accounts become necessary. Keep the single-agent architecture until a specific product requirement justifies changing it.
+
+### Diagnose real research
+
+With a locally installed `qwen3.5:4b` (`ollama pull qwen3.5:4b`) and your Tavily key configured, run `python -m scripts.diagnose_research --live` from the project root. This explicitly uses real provider resources and records private diagnostic artifacts under ignored `work/diagnostics/`. It exercises the real API, isolated SQL queue, worker, model, search, validation, and persistence without modifying normal report history. Restart the backend after changing `OLLAMA_MODEL`.

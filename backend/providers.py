@@ -1,7 +1,11 @@
 import asyncio
 import json
+import logging
+import time
 
 import httpx
+
+log = logging.getLogger("fieldwork.providers")
 
 
 class ProviderError(Exception):
@@ -24,6 +28,12 @@ async def bounded_json(client, method, url, *, limit=500_000, retry=False, **kwa
                         raise ProviderError("Provider response exceeded the size limit.")
                 return json.loads(data)
         except (httpx.HTTPError, ValueError) as exc:
+            log.warning(
+                "provider_failure kind=%s status=%s attempt=%s",
+                type(exc).__name__,
+                exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None,
+                attempt + 1,
+            )
             # No retry for model POSTs: an ambiguous timeout may already have consumed compute.
             if (
                 retry
@@ -43,6 +53,22 @@ class Ollama:
         self.client, self.settings = client, settings
 
     async def chat(self, messages, tools):
+        started = time.perf_counter()
+        tool_messages = [m for m in messages if m.get("role") == "tool"]
+        log.info(
+            "model_request messages=%s message_bytes=%s tool_results=%s tool_result_bytes=%s schemas=%s",
+            len(messages),
+            len(json.dumps(messages).encode()),
+            len(tool_messages),
+            [len(m.get("content", "").encode()) for m in tool_messages],
+            {t["function"]["name"]: len(json.dumps(t).encode()) for t in tools},
+        )
+        try:
+            return await self._chat(messages, tools)
+        finally:
+            log.info("model_finished elapsed_seconds=%.3f", time.perf_counter() - started)
+
+    async def _chat(self, messages, tools):
         body = await bounded_json(
             self.client,
             "POST",
@@ -53,11 +79,34 @@ class Ollama:
                 "tools": tools,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0, "num_predict": 2500, "num_ctx": 16384},
+                "options": {"temperature": 0, "num_predict": 1500, "num_ctx": 8192},
             },
             timeout=90,
         )
         message = body.get("message") if isinstance(body, dict) else None
+        if isinstance(body, dict):
+            log.info(
+                "model_metrics %s",
+                json.dumps(
+                    {
+                        k: body[k]
+                        for k in (
+                            "total_duration",
+                            "load_duration",
+                            "prompt_eval_count",
+                            "prompt_eval_duration",
+                            "eval_count",
+                            "eval_duration",
+                        )
+                        if isinstance(body.get(k), (int, float))
+                    }
+                ),
+            )
+            log.info("model_stop length_limit=%s", body.get("done_reason") == "length")
+            if body.get("done_reason") == "length":
+                raise ProviderError(
+                    "Model reached its context or output limit before completing a response."
+                )
         if not isinstance(message, dict) or message.get("role") != "assistant":
             raise ProviderError("Model returned an invalid message.")
         calls = message.get("tool_calls", [])
@@ -74,7 +123,7 @@ class Ollama:
         }
 
 
-class BraveSearch:
+class TavilySearch:
     def __init__(self, client, key):
         self.client, self.key = client, key
 
@@ -83,17 +132,36 @@ class BraveSearch:
             raise ProviderError("Search provider is not configured.")
         body = await bounded_json(
             self.client,
-            "GET",
-            "https://api.search.brave.com/res/v1/web/search",
+            "POST",
+            "https://api.tavily.com/search",
             retry=True,
-            params={"q": query, "count": 5, "safesearch": "strict", "text_decorations": "false"},
-            headers={"X-Subscription-Token": self.key, "Accept": "application/json"},
+            json={
+                "query": query,
+                "topic": "general",
+                "search_depth": "basic",
+                "max_results": 5,
+                "auto_parameters": False,
+                "include_answer": False,
+                "include_raw_content": False,
+                "include_images": False,
+                "safe_search": True,
+            },
+            headers={"Authorization": f"Bearer {self.key}", "Accept": "application/json"},
             timeout=15,
         )
         try:
-            results = body.get("web", {}).get("results", [])
+            results = body["results"]
             if not isinstance(results, list):
                 raise TypeError()
-            return results[:5]
-        except (TypeError, AttributeError):
+            normalized = []
+            for row in results[:5]:
+                if not isinstance(row, dict) or any(
+                    not isinstance(row.get(field), str) for field in ("title", "url", "content")
+                ):
+                    raise TypeError()
+                normalized.append(
+                    {"title": row["title"], "url": row["url"], "description": row["content"]}
+                )
+            return normalized
+        except (TypeError, KeyError, AttributeError):
             raise ProviderError("Search provider returned an invalid result list.") from None

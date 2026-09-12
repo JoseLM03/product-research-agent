@@ -25,7 +25,7 @@ This is an implementation review, not a penetration test or security guarantee.
 6. **Input-read abuse:** the body size limit bounds bytes, not the time a slow client takes to upload them. Configure reverse-proxy read/header timeouts and request-rate controls.
 7. **Data retention:** report JSON includes the original brief and financial scenario; exports are private data. The app does not encrypt SQL columns or provide user accounts. Use TLS, encrypted storage/backups, and restricted database roles at the host. Cleanup runs with the worker, not an independent scheduler.
 8. **Evidence durability:** a failed job retains tool events but not a complete source snapshot unless a valid final report was submitted. No full-page archives are stored. Search-provider terms determine permissible storage and reuse.
-9. **Unverified environments:** no live Brave key, successful full live-model run, Docker execution, PostgreSQL execution, browser visual/accessibility audit, or public deployment was available for this handoff. These are release gates, not claimed successes.
+9. **Unverified environments:** no live Tavily key, successful full live-model run, Docker execution, PostgreSQL execution, browser visual/accessibility audit, or public deployment was available for this handoff. These are release gates, not claimed successes.
 
 ## Review outcomes
 

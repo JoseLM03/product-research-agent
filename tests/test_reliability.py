@@ -17,7 +17,7 @@ def test_worker_consumes_durable_queue(tmp_path):
         database_url=f"sqlite:///{tmp_path / 'worker.db'}",
         worker_enabled=True,
         research_enabled=True,
-        brave_api_key="test-only",
+        tavily_api_key="test-only",
         app_origin="http://testserver",
     )
     app = create_app(settings, model=ModelFixture(), search=SearchFixture())
