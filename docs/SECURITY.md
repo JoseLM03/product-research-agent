@@ -8,7 +8,7 @@ This is an implementation review, not a penetration test or security guarantee.
 - Server-generated 256-bit session owner in a Starlette/itsdangerous signed cookie. HttpOnly and SameSite=Strict; Secure in production. No password storage. Owner-filtered reads/deletes return 404 for another browser's jobs.
 - Exact configured-origin checks and JSON-only mutation requests; same-origin API architecture; no permissive CORS.
 - No raw model HTML rendering, arbitrary tool execution, dynamic imports from model input, or full-page URL fetching. Search credentials stay server-side.
-- Sources are server-collected snippets with timestamps and queries. Citations require exact quote inclusion. Unsafe/non-HTTP source links are filtered. This is not semantic verification.
+- Sources are server-collected snippets with timestamps and queries. Citations require exact quote inclusion. Unsafe/non-HTTP source links are filtered. A bounded local support-screening candidate follows provenance validation, but demonstrated semantic false accepts mean it is not a security or truth guarantee. Missing, duplicate, malformed, or timed-out verdicts fail closed. See `CLAIM_ALIGNMENT.md`.
 - One SQL admission transaction protects global, session, client-IP, active-job, and queue limits. IP identifiers are HMACs, not raw IPs. Quota records survive report deletion and expire after two days.
 - Tool/turn/source-count bounds, limited response sizes, timeouts, and one retry only for selected search transport/status failures. Model POSTs are not retried automatically.
 - Durable queue states, guarded claiming, graceful cancellation failure, stale-job recovery, and cascading retention cleanup. Production schema migrations are explicit.

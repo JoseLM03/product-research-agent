@@ -131,24 +131,16 @@ def definitions(names=None):
 
 
 def citation_view(source):
-    """Present copyable spans, never generated summaries or repaired citations."""
+    """Prefer sentence/line boundaries; never offer a chopped long sentence as evidence."""
     snippet = source["snippet"]
-    excerpts = []
-    start = 0
-    while start < len(snippet):
-        end = min(start + 240, len(snippet))
-        if end < len(snippet):
-            boundary = snippet.rfind(" ", start + 12, end)
-            if boundary != -1:
-                end = boundary
-        excerpt = snippet[start:end].strip()
-        if excerpt:
-            excerpts.append(excerpt)
-        start = end
+    parts = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9“"])|\n+', snippet)
+    excerpts = [
+        part.strip() for part in parts if 12 <= len(part.strip()) <= 500 and "[...]" not in part
+    ]
     return {
         "id": source["id"],
         "title": source["title"],
-        "excerpts": [{"index": i + 1, "text": text} for i, text in enumerate(excerpts)],
+        "excerpts": [{"index": i + 1, "text": text} for i, text in enumerate(excerpts[:100])],
     }
 
 
@@ -214,6 +206,7 @@ class ResearchTools:
         data = submission.model_dump(mode="json")
         claims = [data["overview"], data["rationale"], *data["observations"], *data["competitors"]]
         for claim in claims:
+            claim["citations"] = [claim.pop("citation")]
             for citation in claim["citations"]:
                 source_id = citation["source_id"]
                 source = self.sources.get(source_id)
@@ -257,7 +250,7 @@ class ResearchTools:
             )
         ][:30]
         data["limitations"] += [
-            "Evidence is limited to search snippets; citations are validated for existence, not semantic correctness.",
+            "Evidence is limited to search snippets. Exact quotes establish provenance; automated support checks are fallible and do not independently verify source claims.",
             "Price mentions may refer to shipping, accessories, or old offers. Verify listings before relying on them.",
         ]
         data["limitations"] += self.failures

@@ -23,6 +23,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", required=True)
     parser.add_argument("--model")
+    parser.add_argument("--idea", default="Reusable water bottle for college students")
     args = parser.parse_args()
     configured = Settings()
     model = args.model or configured.ollama_model
@@ -77,9 +78,7 @@ def main():
     with TestClient(create_app(settings, model=RecordingModel())) as client:
         client.headers["origin"] = settings.app_origin
         client.get("/api/session").raise_for_status()
-        response = client.post(
-            "/api/research", json={"idea": "Reusable water bottle for college students"}
-        )
+        response = client.post("/api/research", json={"idea": args.idea})
         response.raise_for_status()
         job_id = response.json()["id"]
         while True:
@@ -94,6 +93,7 @@ def main():
         elapsed = round(time.perf_counter() - started, 3)
         (folder / "result.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
         summary = {
+            "idea": args.idea,
             "model": model,
             "status": result["status"],
             "elapsed_seconds": elapsed,

@@ -1,5 +1,9 @@
 # Verification record — 2026-09-09
 
+## September 14 candidate: NOT READY
+
+120 Python tests passed (6.55 seconds; one upstream Starlette/AnyIO deprecation warning), 7 frontend tests passed, and Ruff lint/format plus frontend lint/typecheck passed. The 26-case real local-model adversarial evaluation had 2 false accepts and 2 false rejects in 13.695 seconds. Four real API/SQLite-worker/Ollama/Tavily tasks failed closed after one repair (28.042, 43.820, 37.240, and 35.723 seconds). No report from those four runs was accepted. These are correctness and completion-rate blockers despite passing unit tests. See [full evidence and limitations](CLAIM_ALIGNMENT.md). No new build, deployment, or browser verification was performed for this backend-only change. Historical results below refer to earlier checkpoints.
+
 All results below refer to the Windows project in this handoff. No WSL files were copied, overwritten, or removed.
 
 ## Passed

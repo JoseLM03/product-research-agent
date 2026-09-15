@@ -14,7 +14,7 @@ No LangChain, vector database, browser scraper, broker, or separate job service 
 4. Validate the tool name and arguments against the registry's Pydantic model.
 5. Execute the selected tool and append a `role=tool`, `tool_name=...` observation to the conversation.
 6. Allow additional model-selected calls until a valid `submit_report` call, eight turns, ten research calls by default, or the job deadline. `submit_report` is exempt from the research-call budget; only that tool is offered once the budget is exhausted.
-7. Validate all citations against the server-owned source ledger, attach sources and deterministic calculation/price fields, and persist the result.
+7. Validate citations against the server-owned source ledger, then enforce short attributed claims, one excerpt per claim, numerical-token inclusion, and prospective hypothesis framing. Screen model-authored report prose with one bounded local Ollama call per candidate before persistence. Rejected submissions get at most one repair; unavailable/malformed verification fails immediately. This candidate is not V1-ready; see `CLAIM_ALIGNMENT.md`.
 
 Tool errors are returned as observations so the model can adapt. Invalid submissions can be repaired within the planning limit, and failed attempts remain limitations. For a standalone rejected submission, the model receives the latest repair guidance instead of accumulating invalid drafts. Search observations omit repeated metadata and expose deterministic numbered excerpts; the original source ledger is unchanged. Arbitrary code, shell commands, filesystem access, and arbitrary URL fetching are not agent capabilities. The app does not expose or persist model chain-of-thought.
 
@@ -30,11 +30,11 @@ The optional browser `stage_research_idea` WebMCP affordance only fills the brie
 
 ## Report contract
 
-Overview, observations, competitor observations, and assessment rationale each require at least one collected source ID and an exact quote. Opportunities and risks use a hypothesis plus validation-step structure. The assessment is one of `worth_further_research`, `mixed_signals`, or `insufficient_evidence`.
+Native submissions use one `citation: {source_id, excerpt}` per factual claim and a 300-character limit. The public report retains `citations: [{source_id, quote}]`, so saved reports and frontend types remain compatible. Overview and rationale follow the same rules as observations and competitors. Opportunities and risks start with `Test whether ` and include a future validation step. The assessment is one of `worth_further_research`, `mixed_signals`, or `insufficient_evidence`.
 
 The server supplies source records, price mentions, calculations, and `data_quality=limited`. The model cannot supply arbitrary output source URLs or modify the original cost scenario. The UI renders text through React, never as raw model-generated HTML or Markdown.
 
-`completed` means a report passed structural/evidence-reference validation. It is not certification that the opportunity is good or that every interpretation is true. Tool failures, too few sources, and an insufficient-evidence assessment produce `partial`; an invalid or absent report produces `failed`.
+`completed` means a report passed structural/evidence-reference validation and the candidate support checks. The local reviewer has demonstrated false accepts, so this does not certify semantic correctness. Tool failures, too few sources, and an insufficient-evidence assessment produce `partial`; an invalid or absent report produces `failed`.
 
 ## SQL design
 

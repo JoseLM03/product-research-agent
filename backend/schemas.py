@@ -77,8 +77,13 @@ class CitationReference(StrictModel):
     )
 
 
-class ReferencedClaim(Claim):
-    citations: list[CitationReference] = Field(min_length=1, max_length=5)
+class ReferencedClaim(StrictModel):
+    citation: CitationReference
+    text: str = Field(
+        min_length=5,
+        max_length=300,
+        description="One atomic source-attributed observation, fully supported by this citation. No added product attributes, market conclusions, or second idea.",
+    )
 
 
 class ReportSubmission(ReportDraft):

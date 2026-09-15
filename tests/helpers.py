@@ -19,7 +19,7 @@ class SearchFixture:
 
 def draft(source="S1", quote="Fixture Grinder A has replaceable burrs"):
     claim = {
-        "text": "The fixture listing advertises replaceable burrs.",
+        "text": "The listing advertises replaceable burrs.",
         "citations": [{"source_id": source, "quote": quote}],
     }
     return {
@@ -45,12 +45,15 @@ def call(name, arguments):
             *arguments["observations"],
             *arguments["competitors"],
         ]:
-            for citation in claim["citations"]:
-                if "quote" in citation:
-                    quote = citation.pop("quote")
-                    citation["excerpt"] = (
-                        1 if quote == "Fixture Grinder A has replaceable burrs" else 99
-                    )
+            if "citations" not in claim:
+                continue
+            citation = claim.pop("citations")[0]
+            if "quote" in citation:
+                quote = citation.pop("quote")
+                citation["excerpt"] = (
+                    1 if quote == "Fixture Grinder A has replaceable burrs" else 99
+                )
+            claim["citation"] = citation
     return {
         "role": "assistant",
         "content": "",
@@ -68,5 +71,17 @@ class ModelFixture:
         self.messages = []
 
     async def chat(self, messages, tools):
+        if tools[0]["function"]["name"] == "alignment_verdicts":
+            import json
+
+            items = json.loads(messages[-1]["content"])
+            return call(
+                "alignment_verdicts",
+                {
+                    "results": [
+                        {"id": item["id"], "supported": True, "reason": "ok"} for item in items
+                    ]
+                },
+            )
         self.messages.append(list(messages))
         return self.responses.pop(0)

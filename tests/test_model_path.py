@@ -22,7 +22,7 @@ def test_native_schema_has_concrete_nested_types_and_keeps_constraints():
     claim = schema["properties"]["overview"]
     assert claim["type"] == "object"
     assert claim["additionalProperties"] is False
-    citation = claim["properties"]["citations"]["items"]
+    citation = claim["properties"]["citation"]
     assert citation["type"] == "object"
     assert citation["properties"]["excerpt"]["minimum"] == 1
     assert citation["properties"]["excerpt"]["maximum"] == 100
@@ -73,7 +73,6 @@ def test_repair_keeps_evidence_without_replaying_failed_drafts():
             [
                 call("search_web", {"query": "grinder"}),
                 call("submit_report", bad),
-                call("submit_report", bad),
                 call("submit_report", draft()),
             ]
         )
@@ -86,7 +85,7 @@ def test_repair_keeps_evidence_without_replaying_failed_drafts():
         )
         assert status == "partial"
         final_context = model.messages[-1]
-        assert len(final_context) == len(model.messages[-2])
+        assert len(final_context) == len(model.messages[-2]) + 1
         assert "NONEXISTENT QUOTE SENTINEL" not in json.dumps(final_context)
         assert "Fixture Grinder A has replaceable burrs" in json.dumps(final_context)
         assert "Invalid excerpt reference for S1" in final_context[-1]["content"]
@@ -204,7 +203,7 @@ def test_copyable_excerpts_are_exact_original_spans():
     snippet = "Curly “quotes” must stay unchanged. " * 60
     view = citation_view({"id": "S1", "title": "Evidence", "snippet": snippet})
     assert len(view["excerpts"]) > 1
-    assert all(0 < len(x["text"]) <= 240 and x["text"] in snippet for x in view["excerpts"])
+    assert all(0 < len(x["text"]) <= 500 and x["text"] in snippet for x in view["excerpts"])
     assert "".join(x["text"] for x in view["excerpts"]).replace(" ", "") == snippet.replace(" ", "")
 
 
@@ -218,6 +217,6 @@ def test_reference_resolution_preserves_exact_quotes_and_rejects_unknown_ids():
     quote = report["overview"]["citations"][0]["quote"]
     assert quote == tools.sources["S1"]["snippet"]
     assert "excerpt" not in report["overview"]["citations"][0]
-    submitted["overview"]["citations"][0]["source_id"] = "S9"
+    submitted["overview"]["citation"]["source_id"] = "S9"
     with pytest.raises(CitationError):
         tools.validate_report(ReportSubmission.model_validate(submitted))

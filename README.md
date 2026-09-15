@@ -2,7 +2,7 @@
 
 Fieldwork is a full-stack research workspace for investigating product ideas. One AI agent chooses research tools, observes their results, makes follow-up calls, and submits a validated report with source quotes. Research runs as a durable SQL job; the browser shows its status, tool activity, findings, and limitations.
 
-**Status:** locally tested; not deployed. The September 12 live diagnosis completed three real Ollama/Tavily API-to-worker-to-persisted-report runs in 22.431, 15.335, and 14.292 seconds on this laptop. Structural and citation-reference validation passed; human review still found overbroad claims and imperfect claim-to-excerpt alignment. This is not a verified market-intelligence service. See [research diagnosis](docs/RESEARCH_DIAGNOSIS.md) for reproducible commands, model selection, and limitations.
+**Status: NOT READY for a V1 research-quality checkpoint.** The September 14 candidate adds strict claim checks and bounded local support review, but four live runs failed closed and the review still made semantic mistakes. This uncommitted candidate reduces completion reliability compared with the September 12 runtime checkpoint. See [claim-alignment evaluation](docs/CLAIM_ALIGNMENT.md) for failures, timings, and tests. The application is locally tested, not deployed or independently verified market intelligence.
 
 There are no sample market reports, fake users, invented metrics, or silent mock-provider fallbacks in the application. Without provider configuration, the UI clearly disables research. Existing research is private to a signed browser session.
 
