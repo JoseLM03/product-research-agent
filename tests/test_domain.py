@@ -3,10 +3,10 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from backend.schemas import Costs, ReportDraft, ResearchInput, SearchArgs
+from backend.schemas import Costs, ReportDraft, ReportSubmission, ResearchInput, SearchArgs
 from backend.tools import ResearchTools, margin, safe_url
 
-from .helpers import SearchFixture, draft
+from .helpers import SearchFixture, call, draft
 
 
 def test_margin_uses_decimal_and_all_costs():
@@ -77,7 +77,8 @@ def test_rejects_blank_idea_and_unknown_fields():
 def test_report_citations_and_prices_are_grounded():
     tools = ResearchTools(SearchFixture())
     asyncio.run(tools.execute("search_web", SearchArgs(query="grinder")))
-    report = tools.validate_report(ReportDraft.model_validate(draft()))
+    data = call("submit_report", draft())["tool_calls"][0]["function"]["arguments"]
+    report = tools.validate_report(ReportSubmission.model_validate(data))
     assert report["price_mentions"] == [{"source_id": "S1", "text": "$80.00"}]
     assert report["sources"][0]["url"] == "https://example.com/grinder-a"
     for bad in [draft("S9"), draft(quote="This is an invented source quote.")]:

@@ -1,5 +1,7 @@
 """Explicit synthetic provider fixtures. Never imported by production code."""
 
+FACT_QUOTE = "Fixture Grinder A has replaceable burrs, a manual handle, and a steel housing and is advertised at $80.00."
+
 
 class SearchFixture:
     async def search(self, query):
@@ -7,7 +9,8 @@ class SearchFixture:
             {
                 "title": "Fixture Grinder A",
                 "url": "https://example.com/grinder-a",
-                "description": "Fixture Grinder A has replaceable burrs and is advertised at $80.00.",
+                "description": FACT_QUOTE
+                + "\nFixture Grinder A uses replaceable burrs.\nFixture Grinder A has a manual handle.\nFixture Grinder A has a steel housing.",
             },
             {
                 "title": "Fixture Grinder B",
@@ -17,19 +20,18 @@ class SearchFixture:
         ]
 
 
-def draft(source="S1", quote="Fixture Grinder A has replaceable burrs"):
-    claim = {
-        "text": "The listing advertises replaceable burrs.",
-        "citations": [{"source_id": source, "quote": quote}],
-    }
+def draft(source="S1", quote=FACT_QUOTE):
+    def claim(text):
+        return {"text": text, "citations": [{"source_id": source, "quote": quote}]}
+
     return {
-        "overview": claim,
-        "observations": [claim],
-        "competitors": [claim],
+        "overview": claim("The listing describes Fixture Grinder A."),
+        "observations": [claim("The listing describes a manual handle.")],
+        "competitors": [claim("The listing describes a steel housing on Fixture Grinder A.")],
         "opportunities": [],
         "risks": [],
         "assessment": "mixed_signals",
-        "rationale": claim,
+        "rationale": claim("The listing advertises replaceable burrs."),
         "limitations": ["Synthetic test evidence only."],
     }
 
@@ -39,20 +41,24 @@ def call(name, arguments):
         import copy
 
         arguments = copy.deepcopy(arguments)
-        for claim in [
-            arguments["overview"],
-            arguments["rationale"],
-            *arguments["observations"],
-            *arguments["competitors"],
-        ]:
+        # Convert the resolved fixture to the native submission contract.
+        arguments.pop("limitations", None)
+        for index, claim in enumerate(
+            [
+                arguments["overview"],
+                arguments["rationale"],
+                *arguments["observations"],
+                *arguments["competitors"],
+            ],
+            1,
+        ):
+            claim.pop("text", None)
             if "citations" not in claim:
                 continue
             citation = claim.pop("citations")[0]
             if "quote" in citation:
                 quote = citation.pop("quote")
-                citation["excerpt"] = (
-                    1 if quote == "Fixture Grinder A has replaceable burrs" else 99
-                )
+                citation["excerpt"] = index if quote == FACT_QUOTE else 99
             claim["citation"] = citation
     return {
         "role": "assistant",

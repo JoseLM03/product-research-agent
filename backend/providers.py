@@ -69,6 +69,12 @@ class Ollama:
             log.info("model_finished elapsed_seconds=%.3f", time.perf_counter() - started)
 
     async def _chat(self, messages, tools):
+        options = {"temperature": 0, "num_predict": 1500, "num_ctx": 8192}
+        # Qwen's inherited 1.5 presence penalty can corrupt repeated native
+        # report delimiters. Scope the override to generation: the independently
+        # evaluated alignment verifier retains its existing sampling behavior.
+        if any(tool.get("function", {}).get("name") == "submit_report" for tool in tools):
+            options["presence_penalty"] = 0
         body = await bounded_json(
             self.client,
             "POST",
@@ -79,7 +85,7 @@ class Ollama:
                 "tools": tools,
                 "stream": False,
                 "think": False,
-                "options": {"temperature": 0, "num_predict": 1500, "num_ctx": 8192},
+                "options": options,
             },
             timeout=90,
         )

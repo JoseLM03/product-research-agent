@@ -45,11 +45,19 @@ class Claim(StrictModel):
 
 
 class Hypothesis(StrictModel):
-    text: str = Field(min_length=5, max_length=800)
-    validation_step: str = Field(min_length=5, max_length=500)
+    text: str = Field(
+        min_length=5,
+        max_length=800,
+        description='Start with "Test whether ". Propose a future test without asserted facts or numerical forecasts. Numeric test parameters with explicit units, such as a 12-volt prototype, are allowed; predicted results are not.',
+    )
+    validation_step: str = Field(
+        min_length=5,
+        max_length=500,
+        description="Describe a concrete future test, without asserting results or factual premises.",
+    )
 
 
-class ReportDraft(StrictModel):
+class ReportContent(StrictModel):
     overview: Claim
     observations: list[Claim] = Field(max_length=8)
     competitors: list[Claim] = Field(max_length=8)
@@ -57,6 +65,11 @@ class ReportDraft(StrictModel):
     risks: list[Hypothesis] = Field(max_length=5)
     assessment: Literal["worth_further_research", "mixed_signals", "insufficient_evidence"]
     rationale: Claim
+
+
+class ReportDraft(ReportContent):
+    """Resolved report with server-owned process disclosures."""
+
     limitations: list[str] = Field(min_length=1, max_length=10)
 
     @field_validator("limitations")
@@ -79,17 +92,22 @@ class CitationReference(StrictModel):
 
 class ReferencedClaim(StrictModel):
     citation: CitationReference
-    text: str = Field(
-        min_length=5,
-        max_length=300,
-        description="One atomic source-attributed observation, fully supported by this citation. No added product attributes, market conclusions, or second idea.",
-    )
 
 
-class ReportSubmission(ReportDraft):
+class ReportSubmission(ReportContent):
     """Native tool input; the stored/public ReportDraft still contains exact quotes."""
 
-    overview: ReferencedClaim
-    observations: list[ReferencedClaim] = Field(max_length=8)
-    competitors: list[ReferencedClaim] = Field(max_length=8)
-    rationale: ReferencedClaim
+    overview: ReferencedClaim = Field(
+        description="Category or use context, supported by its excerpt. Do not repeat another report claim."
+    )
+    observations: list[ReferencedClaim] = Field(
+        max_length=8,
+        description="Distinct user needs or practical tradeoffs. Each entry adds a new supported proposition across the report. Use [] if none; no source quota.",
+    )
+    competitors: list[ReferencedClaim] = Field(
+        max_length=8,
+        description="Identifiable offering-specific details, not repeated category or audience claims. Reuse a source only for different facts. Use [] if no additional supported propositions.",
+    )
+    rationale: ReferencedClaim = Field(
+        description="A distinct supported fact relevant to the next-research decision. Do not repeat overview or observations, or invent an inference to justify the assessment."
+    )

@@ -51,7 +51,7 @@ def test_invalid_citation_can_be_repaired_but_is_disclosed():
     )
     (report, status), events = run(model)
     assert status == "partial"
-    assert any("submit_report:" in x for x in report["limitations"])
+    assert any("steps failed" in x for x in report["limitations"])
 
 
 def test_tool_budget_stops_infinite_search():
@@ -90,4 +90,4 @@ def test_provider_failure_is_observed_and_disclosed():
         Intermittent(),
     )
     assert status == "partial"
-    assert any("Search unavailable" in x for x in report["limitations"])
+    assert any("steps failed" in x for x in report["limitations"])

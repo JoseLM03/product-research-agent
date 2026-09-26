@@ -19,6 +19,30 @@ from backend.main import create_app
 from backend.providers import Ollama
 
 
+async def record_http_error(response, path, limit=16_384):
+    """Opt-in private diagnostics only; never send raw errors to public logs/API."""
+    if not response.is_error:
+        return
+    data = bytearray()
+    truncated = False
+    async for chunk in response.aiter_bytes():
+        remaining = limit - len(data)
+        data.extend(chunk[:remaining])
+        if len(chunk) > remaining:
+            truncated = True
+            break
+    path.write_text(
+        json.dumps(
+            {
+                "status_code": response.status_code,
+                "body": data.decode("utf-8", errors="replace"),
+                "truncated": truncated,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--live", action="store_true", required=True)
@@ -66,9 +90,20 @@ def main():
 
         async def chat(self, messages, tools):
             self.turn += 1
-            async with httpx.AsyncClient(trust_env=False) as http:
+            request_path = folder / f"turn-{self.turn}.json"
+            # Persist before inference so failed calls retain their actual input.
+            request_path.write_text(
+                json.dumps({"messages": messages, "tools": tools}), encoding="utf-8"
+            )
+
+            async def capture_error(response):
+                await record_http_error(response, folder / f"turn-{self.turn}-http-error.json")
+
+            async with httpx.AsyncClient(
+                trust_env=False, event_hooks={"response": [capture_error]}
+            ) as http:
                 response = await Ollama(http, settings).chat(messages, tools)
-            (folder / f"turn-{self.turn}.json").write_text(
+            request_path.write_text(
                 json.dumps({"messages": messages, "tools": tools, "response": response}),
                 encoding="utf-8",
             )

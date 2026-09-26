@@ -28,7 +28,10 @@ def test_native_schema_has_concrete_nested_types_and_keeps_constraints():
     assert citation["properties"]["excerpt"]["maximum"] == 100
     assert "quote" not in citation["properties"]
     assert schema["properties"]["competitors"]["maxItems"] == 8
-    assert schema["required"] == ReportDraft.model_json_schema()["required"]
+    assert schema["required"] == [
+        x for x in ReportDraft.model_json_schema()["required"] if x != "limitations"
+    ]
+    assert "limitations" not in schema["properties"]
     assert definitions([]) == []
 
 
@@ -215,7 +218,7 @@ def test_reference_resolution_preserves_exact_quotes_and_rejects_unknown_ids():
     submitted = call("submit_report", draft())["tool_calls"][0]["function"]["arguments"]
     report = tools.validate_report(ReportSubmission.model_validate(submitted))
     quote = report["overview"]["citations"][0]["quote"]
-    assert quote == tools.sources["S1"]["snippet"]
+    assert tools.sources["S1"]["snippet"].startswith(quote)
     assert "excerpt" not in report["overview"]["citations"][0]
     submitted["overview"]["citation"]["source_id"] = "S9"
     with pytest.raises(CitationError):

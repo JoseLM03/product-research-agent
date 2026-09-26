@@ -8,12 +8,23 @@ from backend.config import Settings
 from backend.providers import Ollama, ProviderError, TavilySearch, bounded_json
 
 
-def test_ollama_native_protocol():
+@pytest.mark.parametrize(
+    "names", [[], ["alignment_verdicts"], ["submit_report"], ["search_web", "submit_report"]]
+)
+def test_ollama_native_protocol(names):
     def handler(request):
         import json
 
         body = json.loads(request.content)
         assert body["stream"] is False
+        expected_options = {
+            "temperature": 0,
+            "num_predict": 1500,
+            "num_ctx": 8192,
+        }
+        if "submit_report" in names:
+            expected_options["presence_penalty"] = 0
+        assert body["options"] == expected_options
         assert "tools" in body
         return httpx.Response(
             200,
@@ -29,10 +40,59 @@ def test_ollama_native_protocol():
 
     async def scenario():
         async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
-            result = await Ollama(client, Settings()).chat([], [])
+            result = await Ollama(client, Settings()).chat(
+                [], [{"type": "function", "function": {"name": name}} for name in names]
+            )
             assert "thinking" not in result
 
     asyncio.run(scenario())
+
+
+def test_native_tool_parser_failure_is_not_retried_or_exposed(caplog):
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        return httpx.Response(
+            500,
+            json={
+                "error": "XML syntax error on line 14: element <function> closed by </parameter> PRIVATE"
+            },
+        )
+
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with pytest.raises(ProviderError) as error:
+                await Ollama(client, Settings()).chat([], [])
+            assert "XML" not in str(error.value)
+            assert "PRIVATE" not in str(error.value)
+
+    asyncio.run(scenario())
+    assert len(calls) == 1
+    assert "status=500" in caplog.text
+    assert "PRIVATE" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    "status,body",
+    [
+        (500, b'{"error":"XML syntax error"}'),
+        (500, b"x" * 20_000),
+        (200, b"private successful response"),
+    ],
+)
+def test_opt_in_diagnostic_error_capture_is_bounded(tmp_path, status, body):
+    from scripts.diagnose_research import record_http_error
+
+    path = tmp_path / "http-error.json"
+    asyncio.run(record_http_error(httpx.Response(status, content=body), path))
+    if status == 200:
+        assert not path.exists()
+    else:
+        captured = json.loads(path.read_text())
+        assert captured["status_code"] == status
+        assert captured["body"] == body[:16_384].decode()
+        assert captured["truncated"] == (len(body) > 16_384)
 
 
 def test_search_retries_transient_status_and_uses_auth_header():
