@@ -75,8 +75,13 @@ class ModelFixture:
             call("submit_report", draft()),
         ]
         self.messages = []
+        self.research_messages = []
 
-    async def chat(self, messages, tools):
+    async def chat(self, messages, tools, *, schema=None):
+        if schema is not None:
+            self.messages.append(list(messages))
+            response = self.responses.pop(0)
+            return response["tool_calls"][0]["function"]["arguments"]
         if tools[0]["function"]["name"] == "alignment_verdicts":
             import json
 
@@ -89,5 +94,12 @@ class ModelFixture:
                     ]
                 },
             )
+        self.research_messages.append(list(messages))
+        if (
+            self.responses
+            and self.responses[0].get("tool_calls", [{}])[0].get("function", {}).get("name")
+            == "submit_report"
+        ):
+            return call("finish_research", {})
         self.messages.append(list(messages))
         return self.responses.pop(0)

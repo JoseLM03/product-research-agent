@@ -88,12 +88,13 @@ def main():
     class RecordingModel:
         turn = 0
 
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, *, schema=None):
             self.turn += 1
             request_path = folder / f"turn-{self.turn}.json"
             # Persist before inference so failed calls retain their actual input.
             request_path.write_text(
-                json.dumps({"messages": messages, "tools": tools}), encoding="utf-8"
+                json.dumps({"messages": messages, "tools": tools, "format": schema}),
+                encoding="utf-8",
             )
 
             async def capture_error(response):
@@ -102,9 +103,11 @@ def main():
             async with httpx.AsyncClient(
                 trust_env=False, event_hooks={"response": [capture_error]}
             ) as http:
-                response = await Ollama(http, settings).chat(messages, tools)
+                response = await Ollama(http, settings).chat(messages, tools, schema=schema)
             request_path.write_text(
-                json.dumps({"messages": messages, "tools": tools, "response": response}),
+                json.dumps(
+                    {"messages": messages, "tools": tools, "response": response, "format": schema}
+                ),
                 encoding="utf-8",
             )
             return response

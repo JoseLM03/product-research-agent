@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.agent import AgentError, coalesce_report, research
+from backend.agent import AgentError, research
 from backend.db import Job
 from backend.quality import (
     AlignmentError,
@@ -24,34 +24,6 @@ from tests.helpers import FACT_QUOTE, ModelFixture, SearchFixture, call, draft
 CASES = json.loads((Path(__file__).parent / "fixtures" / "claim_alignment.json").read_text())
 
 
-def test_disjoint_complete_sections_are_coalesced_without_changing_values():
-    message = call("submit_report", draft())
-    original = message["tool_calls"][0]["function"]["arguments"]
-    message["tool_calls"] = [
-        {"function": {"name": "submit_report", "arguments": {key: value}}}
-        for key, value in original.items()
-    ]
-    assert coalesce_report(message)["tool_calls"][0]["function"]["arguments"] == original
-
-
-@pytest.mark.parametrize("kind", ["overlap", "incomplete", "mixed"])
-def test_ambiguous_report_batches_are_not_merged(kind):
-    message = call("submit_report", draft())
-    first = message["tool_calls"][0]
-    if kind == "overlap":
-        message["tool_calls"].append(first)
-    elif kind == "incomplete":
-        first["function"]["arguments"] = {"overview": {}}
-        message["tool_calls"].append(
-            {"function": {"name": "submit_report", "arguments": {"rationale": {}}}}
-        )
-    else:
-        message["tool_calls"].append(
-            {"function": {"name": "search_web", "arguments": {"query": "example"}}}
-        )
-    assert coalesce_report(message) is message
-
-
 def test_unattributed_rankings_fail_even_if_model_would_accept():
     report = draft()
     report["competitors"][0]["text"] = "Porlex Mini II - Best for Travel"
@@ -64,7 +36,7 @@ class VerdictModel:
         self.results = results
         self.calls = 0
 
-    async def chat(self, messages, tools):
+    async def chat(self, messages, tools, *, schema=None):
         self.calls += 1
         return call("alignment_verdicts", {"results": self.results})
 
@@ -303,7 +275,7 @@ def test_context_approval_cannot_override_missing_excerpt_support(claim, excerpt
         def __init__(self):
             self.inputs = []
 
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, *, schema=None):
             items = json.loads(messages[-1]["content"])
             self.inputs.append(items)
             # Reproduce the failure mechanism: the contextual review incorrectly
@@ -347,7 +319,7 @@ def test_context_approval_cannot_override_missing_excerpt_support(claim, excerpt
 
 def test_context_retraction_still_rejects_excerpt_supported_claim():
     class RetractionModel:
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, *, schema=None):
             items = json.loads(messages[-1]["content"])
             return call(
                 "alignment_verdicts",
@@ -508,8 +480,8 @@ class RejectingModel(ModelFixture):
         )
         self.reviews = 0
 
-    async def chat(self, messages, tools):
-        if tools[0]["function"]["name"] == "alignment_verdicts":
+    async def chat(self, messages, tools, *, schema=None):
+        if tools and tools[0]["function"]["name"] == "alignment_verdicts":
             self.reviews += 1
             items = json.loads(messages[-1]["content"])
             return call(
@@ -521,7 +493,7 @@ class RejectingModel(ModelFixture):
                     ]
                 },
             )
-        return await super().chat(messages, tools)
+        return await super().chat(messages, tools, schema=schema)
 
 
 def test_alignment_repair_is_bounded_and_does_not_spend_research_budget():

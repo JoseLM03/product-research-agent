@@ -55,8 +55,19 @@ def test_invalid_citation_can_be_repaired_but_is_disclosed():
 
 
 def test_tool_budget_stops_infinite_search():
-    with pytest.raises(AgentError, match="tool-call limit"):
-        run(ModelFixture([call("search_web", {"query": "grinder"})] * 5), limit=2)
+    # Once the research budget is spent, no further search can execute.
+    (report, status), events = run(
+        ModelFixture(
+            [
+                call("search_web", {"query": "grinder"}),
+                call("search_web", {"query": "grinder"}),
+                call("submit_report", draft()),
+            ]
+        ),
+        limit=2,
+    )
+    assert status == "completed"
+    assert sum(e[0] == "search_web" and e[1] == "completed" for e in events) == 2
 
 
 def test_unknown_tool_is_not_executed():

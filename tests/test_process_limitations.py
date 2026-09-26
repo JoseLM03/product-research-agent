@@ -98,12 +98,12 @@ def test_valid_report_never_sends_limitations_to_semantic_review(unsolicited):
     responses.append(good)
 
     class Model(ModelFixture):
-        async def chat(self, messages, tools):
-            if tools[0]["function"]["name"] == "alignment_verdicts":
+        async def chat(self, messages, tools, *, schema=None):
+            if tools and tools[0]["function"]["name"] == "alignment_verdicts":
                 items = json.loads(messages[-1]["content"])
                 assert all(x["kind"] in {"selection", "hypothesis"} for x in items)
                 assert not any(x["id"].startswith("limitations") for x in items)
-            return await super().chat(messages, tools)
+            return await super().chat(messages, tools, schema=schema)
 
     model = Model(responses)
 

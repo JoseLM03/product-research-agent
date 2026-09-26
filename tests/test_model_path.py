@@ -37,10 +37,11 @@ def test_native_schema_has_concrete_nested_types_and_keeps_constraints():
 
 def test_submit_report_still_allowed_after_research_budget_exhausted():
     class Model(ModelFixture):
-        async def chat(self, messages, tools):
+        async def chat(self, messages, tools, *, schema=None):
             if len(self.messages) == 2:
-                assert [t["function"]["name"] for t in tools] == ["submit_report"]
-            return await super().chat(messages, tools)
+                assert tools == []
+                assert schema is not None
+            return await super().chat(messages, tools, schema=schema)
 
     async def scenario():
         async def emit(*args):
@@ -113,7 +114,7 @@ def test_search_metadata_is_not_repeated_but_inspection_refreshes_exact_snippet(
         )
         tools = ResearchTools(SearchFixture())
         await research(ResearchInput(idea="compact coffee grinder"), model, tools, 4, emit)
-        messages = model.messages[-1]
+        messages = model.research_messages[-1]
         results = [json.loads(m["content"]) for m in messages if m["role"] == "tool"]
         assert results[0]["sources"][0] == citation_view(tools.sources["S1"])
         assert results[1]["sources"][0] == {"id": "S1", "already_in_context": True}

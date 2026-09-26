@@ -73,6 +73,10 @@ def margin(costs):
 
 
 SPECS = {
+    "finish_research": (
+        NoArgs,
+        "Finish research and request structured report generation. No report content belongs in this call.",
+    ),
     "search_web": (
         SearchArgs,
         "Search the web for market context. Results are snippets, not verified facts or full pages.",
@@ -120,7 +124,7 @@ def tool_schema(model):
 
 def definitions(names=None):
     if names is None:
-        names = SPECS.keys()
+        names = [name for name in SPECS if name != "submit_report"]
     return [
         {
             "type": "function",

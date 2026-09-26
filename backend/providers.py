@@ -52,28 +52,31 @@ class Ollama:
     def __init__(self, client, settings):
         self.client, self.settings = client, settings
 
-    async def chat(self, messages, tools):
+    async def chat(self, messages, tools, *, schema=None):
         started = time.perf_counter()
         tool_messages = [m for m in messages if m.get("role") == "tool"]
         log.info(
-            "model_request messages=%s message_bytes=%s tool_results=%s tool_result_bytes=%s schemas=%s",
+            "model_request messages=%s message_bytes=%s tool_results=%s tool_result_bytes=%s schemas=%s structured_schema_bytes=%s",
             len(messages),
             len(json.dumps(messages).encode()),
             len(tool_messages),
             [len(m.get("content", "").encode()) for m in tool_messages],
             {t["function"]["name"]: len(json.dumps(t).encode()) for t in tools},
+            len(json.dumps(schema).encode()) if schema is not None else 0,
         )
         try:
-            return await self._chat(messages, tools)
+            return await self._chat(messages, tools, schema=schema)
         finally:
             log.info("model_finished elapsed_seconds=%.3f", time.perf_counter() - started)
 
-    async def _chat(self, messages, tools):
+    async def _chat(self, messages, tools, *, schema=None):
         options = {"temperature": 0, "num_predict": 1500, "num_ctx": 8192}
-        # Qwen's inherited 1.5 presence penalty can corrupt repeated native
-        # report delimiters. Scope the override to generation: the independently
-        # evaluated alignment verifier retains its existing sampling behavior.
-        if any(tool.get("function", {}).get("name") == "submit_report" for tool in tools):
+        # Retain the existing mitigation for native research calls. Structured
+        # reports bypass native parsing; alignment sampling remains unchanged.
+        if any(
+            tool.get("function", {}).get("name") in {"submit_report", "finish_research"}
+            for tool in tools
+        ):
             options["presence_penalty"] = 0
         body = await bounded_json(
             self.client,
@@ -82,7 +85,7 @@ class Ollama:
             json={
                 "model": self.settings.ollama_model,
                 "messages": messages,
-                "tools": tools,
+                **({"format": schema} if schema is not None else {"tools": tools}),
                 "stream": False,
                 "think": False,
                 "options": options,
@@ -115,6 +118,19 @@ class Ollama:
                 )
         if not isinstance(message, dict) or message.get("role") != "assistant":
             raise ProviderError("Model returned an invalid message.")
+        if schema is not None:
+            if message.get("tool_calls") or not isinstance(message.get("content"), str):
+                raise ProviderError("Model returned an invalid structured report response.")
+            # Parse the entire response. No XML salvage, fences, or partial JSON.
+            try:
+                value = json.loads(message["content"])
+                if not isinstance(value, dict):
+                    raise ValueError()
+            except ValueError:
+                raise ProviderError(
+                    "Model returned an invalid structured report response."
+                ) from None
+            return value
         calls = message.get("tool_calls", [])
         if not isinstance(calls, list) or len(calls) > 10:
             raise ProviderError("Model returned an invalid tool-call batch.")
