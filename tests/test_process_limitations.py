@@ -1,7 +1,6 @@
 """Process disclosures are execution metadata, not model-authored market claims."""
 
 import asyncio
-import json
 
 import pytest
 from pydantic import ValidationError
@@ -86,7 +85,7 @@ def test_internal_resolved_report_cannot_smuggle_arbitrary_limitations():
 
 
 @pytest.mark.parametrize("unsolicited", [False, True])
-def test_valid_report_never_sends_limitations_to_semantic_review(unsolicited):
+def test_model_generated_limitations_cannot_enter_the_report(unsolicited):
     good = call("submit_report", draft())
     responses = [call("search_web", {"query": "grinder"})]
     if unsolicited:
@@ -97,15 +96,7 @@ def test_valid_report_never_sends_limitations_to_semantic_review(unsolicited):
         responses.append(bad)
     responses.append(good)
 
-    class Model(ModelFixture):
-        async def chat(self, messages, tools, *, schema=None):
-            if tools and tools[0]["function"]["name"] == "alignment_verdicts":
-                items = json.loads(messages[-1]["content"])
-                assert all(x["kind"] in {"selection", "hypothesis"} for x in items)
-                assert not any(x["id"].startswith("limitations") for x in items)
-            return await super().chat(messages, tools, schema=schema)
-
-    model = Model(responses)
+    model = ModelFixture(responses)
 
     async def scenario():
         async def emit(*args):

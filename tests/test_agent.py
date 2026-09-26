@@ -42,10 +42,12 @@ def test_native_tool_loop_observes_results_then_submits():
 
 
 def test_invalid_citation_can_be_repaired_but_is_disclosed():
+    bad = call("submit_report", draft())
+    bad["tool_calls"][0]["function"]["arguments"]["overview"]["citation"]["source_id"] = "S9"
     model = ModelFixture(
         [
             call("search_web", {"query": "grinder"}),
-            call("submit_report", draft("S9")),
+            bad,
             call("submit_report", draft()),
         ]
     )

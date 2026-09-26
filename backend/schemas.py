@@ -48,7 +48,12 @@ class Hypothesis(StrictModel):
     text: str = Field(
         min_length=5,
         max_length=800,
-        description='Start with "Test whether ". Propose a future test without asserted facts or numerical forecasts. Numeric test parameters with explicit units, such as a 12-volt prototype, are allowed; predicted results are not.',
+        description=(
+            'Start with "Test whether ". Propose a future test without asserting proven, '
+            "established, or confirmed demand or sales. Percentage and currency forecasts "
+            "are forbidden. Numeric test parameters with explicit units, such as a 12-volt "
+            "prototype, are allowed."
+        ),
     )
     validation_step: str = Field(
         min_length=5,

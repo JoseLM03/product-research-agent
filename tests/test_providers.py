@@ -9,7 +9,7 @@ from backend.providers import Ollama, ProviderError, TavilySearch, bounded_json
 
 
 @pytest.mark.parametrize(
-    "names", [[], ["alignment_verdicts"], ["submit_report"], ["search_web", "submit_report"]]
+    "names", [[], ["inspect_evidence"], ["submit_report"], ["search_web", "submit_report"]]
 )
 def test_ollama_native_protocol(names):
     def handler(request):

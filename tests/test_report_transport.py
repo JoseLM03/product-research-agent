@@ -70,7 +70,8 @@ def test_structured_protocol_is_strict_and_never_retries(content, tool_calls, st
 
 
 def test_structured_repair_preserves_ledger_and_rejected_draft():
-    bad = call("submit_report", draft("S9"))
+    bad = call("submit_report", draft())
+    bad["tool_calls"][0]["function"]["arguments"]["overview"]["citation"]["source_id"] = "S9"
 
     class Model(ModelFixture):
         structured_calls = 0
@@ -83,6 +84,7 @@ def test_structured_repair_preserves_ledger_and_rejected_draft():
                 ledger = json.loads(messages[1]["content"])
                 assert {s["id"] for s in ledger["sources"]} == {"S1", "S2"}
                 if self.structured_calls == 2:
+                    assert schema["required"] == ["overview"]
                     assert "rejected_draft" in messages[-1]["content"]
                     assert "S9" in messages[-1]["content"]
             return await super().chat(messages, tools, schema=schema)
@@ -100,6 +102,58 @@ def test_structured_repair_preserves_ledger_and_rejected_draft():
     assert model.structured_calls == 2
     assert status == "partial"
     assert report["overview"]["citations"][0]["source_id"] == "S1"
+
+
+def test_repair_freezes_every_unaffected_top_level_section():
+    rejected = draft()
+    rejected["risks"] = [
+        {
+            "text": "Test whether sales grow 50% next quarter.",
+            "validation_step": "Run a buyer study.",
+        }
+    ]
+    changed = draft()
+    changed["overview"]["citations"][0]["source_id"] = "S2"
+    changed["assessment"] = "worth_further_research"
+    changed["risks"] = [
+        {
+            "text": "Test whether workers prefer the cordless prototype.",
+            "validation_step": "Run a trial with 20 workers.",
+        }
+    ]
+
+    class Model(ModelFixture):
+        async def chat(self, messages, tools, *, schema=None):
+            if schema is not None and schema.get("required") == ["risks"]:
+                assert set(schema["properties"]) == {"risks"}
+                # Simulate a provider that ignores its constrained schema. The
+                # server must still merge only the rejected top-level section.
+                return changed
+            return await super().chat(messages, tools, schema=schema)
+
+    model = Model(
+        [
+            call("search_web", {"query": "grinder"}),
+            call("submit_report", rejected),
+        ]
+    )
+
+    async def emit(*args):
+        pass
+
+    report, status = asyncio.run(
+        research(
+            ResearchInput(idea="coffee grinder"),
+            model,
+            ResearchTools(SearchFixture()),
+            10,
+            emit,
+        )
+    )
+    assert status == "partial"
+    assert report["assessment"] == rejected["assessment"]
+    assert report["overview"]["citations"][0]["source_id"] == "S1"
+    assert report["risks"] == changed["risks"]
 
 
 def test_native_report_payload_is_rejected_instead_of_salvaged():
@@ -147,10 +201,12 @@ def test_finish_signal_cannot_smuggle_report_or_skip_batched_actions(raw, mixed)
 
 
 def test_finish_on_last_planning_turn_still_gets_one_repair():
+    bad = call("submit_report", draft())
+    bad["tool_calls"][0]["function"]["arguments"]["overview"]["citation"]["source_id"] = "S9"
     model = ModelFixture(
         [
             *[call("search_web", {"query": "grinder"}) for _ in range(7)],
-            call("submit_report", draft("S9")),
+            bad,
             call("submit_report", draft()),
         ]
     )

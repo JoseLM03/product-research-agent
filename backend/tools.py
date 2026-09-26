@@ -19,9 +19,10 @@ def evidence_text(source_id, quote):
 class CitationError(ValueError):
     """Safe, server-generated repair guidance with no source or model prose."""
 
-    def __init__(self, message, source_id):
+    def __init__(self, message, source_id, path="report"):
         super().__init__(message)
         self.source_id = source_id
+        self.path = path
 
 
 def safe_url(value):
@@ -140,15 +141,42 @@ def definitions(names=None):
 
 
 def citation_view(source):
-    """Prefer sentence/line boundaries; never offer a chopped long sentence as evidence."""
+    """Expose only conservative, contiguous evidence spans from the source snippet."""
     snippet = source["snippet"]
     # A complete sentence before an omission is still an exact usable span.
     # Keep the marker attached to the following fragment so that fragment is
     # discarded. Never join across a gap or reconstruct a table header.
     parts = re.split(r'(?<=[.!?])\s+(?=[A-Z0-9“"]|\[\.\.\.\])|\n+', snippet)
-    excerpts = [
-        part.strip() for part in parts if 12 <= len(part.strip()) <= 500 and "[...]" not in part
-    ]
+    excerpts = []
+    for part in parts:
+        text = part.strip()
+        lower = text.casefold()
+        if not 12 <= len(text) <= 500 or "[...]" in text:
+            continue
+        # A pipe-delimited row without its headers has no safe value mapping.
+        if text.startswith("|") and text.count("|") >= 2:
+            continue
+        # Transcript tails without terminal punctuation are visibly chopped.
+        if re.match(r"^\[\d{1,2}:\d{2}\]", text) and not re.search(r'[.!?][”"]?$', text):
+            continue
+        if re.search(
+            r"\b(?:a|an|the|and|or|but|for|to|of|with|without|from|in|on|at|by|"
+            r"as|is|are|was|were|its|their|this|that|these|those|limited)\s*$",
+            lower,
+        ):
+            continue
+        if re.match(
+            r"^(?:shop|buy|click|read|learn|see|view|visit|subscribe|sign up)\b",
+            lower,
+        ) or lower in {"from the crew", "what construction workers say"}:
+            continue
+        if (
+            text.count("(") != text.count(")")
+            or text.count("[") != text.count("]")
+            or text.count("“") != text.count("”")
+        ):
+            continue
+        excerpts.append(text)
     return {
         "id": source["id"],
         "title": source["title"],
@@ -216,8 +244,13 @@ class ResearchTools:
 
     def resolve_references(self, submission):
         data = submission.model_dump(mode="json")
-        claims = [data["overview"], data["rationale"], *data["observations"], *data["competitors"]]
-        for claim in claims:
+        claims = [("overview", data["overview"]), ("rationale", data["rationale"])]
+        claims += [
+            (f"{section}[{index}]", claim)
+            for section in ("observations", "competitors")
+            for index, claim in enumerate(data[section])
+        ]
+        for path, claim in claims:
             claim["citations"] = [claim.pop("citation")]
             for citation in claim["citations"]:
                 source_id = citation["source_id"]
@@ -228,6 +261,7 @@ class ResearchTools:
                     raise CitationError(
                         f"Invalid excerpt reference for {source_id}. Select an available excerpt with at least 12 characters.",
                         source_id,
+                        path,
                     )
                 citation["quote"] = excerpts[index]["text"]
             claim["text"] = evidence_text(citation["source_id"], citation["quote"])
@@ -283,6 +317,7 @@ class ResearchTools:
                         "Copy an exact substring from that source's snippet or correct the source ID. "
                         "Submit the complete report again with contiguous, verbatim quotes.",
                         citation.source_id,
+                        path,
                     )
             if len(claim.citations) != 1 or claim.text != evidence_text(
                 claim.citations[0].source_id, claim.citations[0].quote

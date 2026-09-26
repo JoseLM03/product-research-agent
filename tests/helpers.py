@@ -81,19 +81,10 @@ class ModelFixture:
         if schema is not None:
             self.messages.append(list(messages))
             response = self.responses.pop(0)
-            return response["tool_calls"][0]["function"]["arguments"]
-        if tools[0]["function"]["name"] == "alignment_verdicts":
-            import json
-
-            items = json.loads(messages[-1]["content"])
-            return call(
-                "alignment_verdicts",
-                {
-                    "results": [
-                        {"id": item["id"], "supported": True, "reason": "ok"} for item in items
-                    ]
-                },
-            )
+            arguments = response["tool_calls"][0]["function"]["arguments"]
+            if schema.get("title") == "ReportSubmission":
+                return arguments
+            return {name: arguments[name] for name in schema.get("required", [])}
         self.research_messages.append(list(messages))
         if (
             self.responses

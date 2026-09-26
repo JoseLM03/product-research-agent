@@ -72,11 +72,12 @@ def test_repair_keeps_evidence_without_replaying_failed_drafts():
         async def emit(*args):
             pass
 
-        bad = draft(quote="NONEXISTENT QUOTE SENTINEL")
+        bad = call("submit_report", draft())
+        bad["tool_calls"][0]["function"]["arguments"]["overview"]["citation"]["excerpt"] = 99
         model = ModelFixture(
             [
                 call("search_web", {"query": "grinder"}),
-                call("submit_report", bad),
+                bad,
                 call("submit_report", draft()),
             ]
         )
@@ -90,7 +91,6 @@ def test_repair_keeps_evidence_without_replaying_failed_drafts():
         assert status == "partial"
         final_context = model.messages[-1]
         assert len(final_context) == len(model.messages[-2]) + 1
-        assert "NONEXISTENT QUOTE SENTINEL" not in json.dumps(final_context)
         assert "Fixture Grinder A has replaceable burrs" in json.dumps(final_context)
         assert "Invalid excerpt reference for S1" in final_context[-1]["content"]
         assert report["sources"][0]["url"] == "https://example.com/grinder-a"
