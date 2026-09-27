@@ -155,6 +155,8 @@ class DuplicateReportModel(ModelFixture):
 
 
 def test_deterministic_repair_is_bounded_to_one_attempt():
+    model = DuplicateReportModel()
+
     async def emit(*args):
         pass
 
@@ -162,12 +164,13 @@ def test_deterministic_repair_is_bounded_to_one_attempt():
         asyncio.run(
             research(
                 ResearchInput(idea="compact grinder"),
-                DuplicateReportModel(),
+                model,
                 ResearchTools(SearchFixture()),
                 2,
                 emit,
             )
         )
+    assert len(model.messages) == 3
 
 
 def test_worker_never_persists_a_deterministically_rejected_report(client, app):

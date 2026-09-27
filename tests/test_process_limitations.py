@@ -107,7 +107,7 @@ def test_model_generated_limitations_cannot_enter_the_report(unsolicited):
         )
 
     report, status = asyncio.run(scenario())
-    assert status == ("partial" if unsolicited else "completed")
+    assert status == "completed"
     assert all("Demand is low" not in x for x in report["limitations"])
     if unsolicited:
         assert "Omit limitations entirely" in model.messages[-1][-1]["content"]

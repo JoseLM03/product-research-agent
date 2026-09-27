@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.schemas import Costs, ReportDraft, ReportSubmission, ResearchInput, SearchArgs
-from backend.tools import ResearchTools, margin, safe_url
+from backend.tools import ResearchTools, margin, price_mentions, safe_url
 
 from .helpers import SearchFixture, call, draft
 
@@ -84,6 +84,24 @@ def test_report_citations_and_prices_are_grounded():
     for bad in [draft("S9"), draft(quote="This is an invented source quote.")]:
         with pytest.raises(ValueError):
             tools.validate_report(ReportDraft.model_validate(bad))
+
+
+def test_price_mentions_exclude_market_size_and_deduplicate_product_prices():
+    sources = [
+        {
+            "id": "S1",
+            "snippet": (
+                "The market grew from $577.56 million in 2021 to $1547 million by 2033. "
+                "Product prices include $119, $70, $60, and $179. The $119 price is repeated."
+            ),
+        }
+    ]
+    assert price_mentions(sources) == [
+        {"source_id": "S1", "text": "$119"},
+        {"source_id": "S1", "text": "$70"},
+        {"source_id": "S1", "text": "$60"},
+        {"source_id": "S1", "text": "$179"},
+    ]
 
 
 def test_empty_evidence_cannot_be_reported_as_success():

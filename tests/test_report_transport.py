@@ -9,6 +9,7 @@ import pytest
 from backend.agent import AgentError, research
 from backend.config import Settings
 from backend.providers import Ollama, ProviderError
+from backend.quality import AlignmentError
 from backend.schemas import ReportSubmission, ResearchInput
 from backend.tools import ResearchTools, definitions, tool_schema
 from tests.helpers import ModelFixture, SearchFixture, call, draft
@@ -100,7 +101,7 @@ def test_structured_repair_preserves_ledger_and_rejected_draft():
         )
     )
     assert model.structured_calls == 2
-    assert status == "partial"
+    assert status == "completed"
     assert report["overview"]["citations"][0]["source_id"] == "S1"
 
 
@@ -123,7 +124,11 @@ def test_repair_freezes_every_unaffected_top_level_section():
     ]
 
     class Model(ModelFixture):
+        structured_calls = 0
+
         async def chat(self, messages, tools, *, schema=None):
+            if schema is not None:
+                self.structured_calls += 1
             if schema is not None and schema.get("required") == ["risks"]:
                 assert set(schema["properties"]) == {"risks"}
                 # Simulate a provider that ignores its constrained schema. The
@@ -150,10 +155,140 @@ def test_repair_freezes_every_unaffected_top_level_section():
             emit,
         )
     )
-    assert status == "partial"
+    assert status == "completed"
     assert report["assessment"] == rejected["assessment"]
     assert report["overview"]["citations"][0]["source_id"] == "S1"
     assert report["risks"] == changed["risks"]
+    assert model.structured_calls == 2
+
+
+def test_second_invalid_optional_hypothesis_is_dropped_without_another_model_call():
+    rejected = draft()
+    rejected["opportunities"] = [
+        {
+            "text": "Test whether buyers choose 3 colors.",
+            "validation_step": "Run a future preference test.",
+        }
+    ]
+    model = ModelFixture(
+        [
+            call("search_web", {"query": "grinder"}),
+            call("submit_report", rejected),
+            call("submit_report", rejected),
+        ]
+    )
+
+    events = []
+
+    async def emit(*args):
+        events.append(args)
+
+    report, status = asyncio.run(
+        research(
+            ResearchInput(idea="coffee grinder"),
+            model,
+            ResearchTools(SearchFixture()),
+            10,
+            emit,
+        )
+    )
+    assert status == "completed"
+    assert report["opportunities"] == []
+    assert not any("steps failed" in item for item in report["limitations"])
+    assert sum(event[:2] == ("submit_report", "failed") for event in events) == 2
+    assert any(event[:2] == ("submit_report", "completed") for event in events)
+    assert len(model.messages) == 3
+    assert not model.responses
+
+
+def test_fallback_removes_multiple_invalid_hypotheses_and_preserves_valid_entries():
+    valid_opportunity = {
+        "text": "Test whether workers prefer the cordless prototype.",
+        "validation_step": "Run a supervised preference test.",
+    }
+    valid_risk = {
+        "text": "Test whether the larger box is convenient for workers.",
+        "validation_step": "Run a packing trial.",
+    }
+    rejected = draft()
+    rejected["opportunities"] = [
+        valid_opportunity,
+        {
+            "text": "Test whether buyers choose 3 colors.",
+            "validation_step": "Run a preference test.",
+        },
+    ]
+    rejected["risks"] = [
+        {
+            "text": "Test whether sales grow 50% next quarter.",
+            "validation_step": "Run a buyer study.",
+        },
+        valid_risk,
+        {
+            "text": "Test whether proven demand increases sales.",
+            "validation_step": "Run another buyer study.",
+        },
+    ]
+    model = ModelFixture(
+        [
+            call("search_web", {"query": "grinder"}),
+            call("submit_report", rejected),
+            call("submit_report", rejected),
+        ]
+    )
+
+    async def emit(*args):
+        pass
+
+    report, _ = asyncio.run(
+        research(
+            ResearchInput(idea="coffee grinder"),
+            model,
+            ResearchTools(SearchFixture()),
+            10,
+            emit,
+        )
+    )
+    assert report["opportunities"] == [valid_opportunity]
+    assert report["risks"] == [valid_risk]
+    assert len(model.messages) == 3
+
+
+def test_unknown_hypothesis_alignment_failure_does_not_trigger_pruning(monkeypatch):
+    rejected = draft()
+    rejected["opportunities"] = [
+        {
+            "text": "Test whether workers prefer the cordless prototype.",
+            "validation_step": "Run a preference test.",
+        }
+    ]
+
+    def reject_unknown(*args):
+        raise AlignmentError([("opportunities[0]", "unknown_hypothesis_failure")])
+
+    monkeypatch.setattr("backend.agent.validate_report_quality", reject_unknown)
+    model = ModelFixture(
+        [
+            call("search_web", {"query": "grinder"}),
+            call("submit_report", rejected),
+            call("submit_report", rejected),
+        ]
+    )
+
+    async def emit(*args):
+        pass
+
+    with pytest.raises(AgentError, match="one repair"):
+        asyncio.run(
+            research(
+                ResearchInput(idea="coffee grinder"),
+                model,
+                ResearchTools(SearchFixture()),
+                10,
+                emit,
+            )
+        )
+    assert len(model.messages) == 3
 
 
 def test_native_report_payload_is_rejected_instead_of_salvaged():
@@ -219,6 +354,6 @@ def test_finish_on_last_planning_turn_still_gets_one_repair():
             ResearchInput(idea="coffee grinder"), model, ResearchTools(SearchFixture()), 10, emit
         )
     )
-    assert status == "partial"
+    assert status == "completed"
     assert not model.responses
     assert report["sources"]

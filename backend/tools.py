@@ -73,6 +73,28 @@ def margin(costs):
     }
 
 
+def price_mentions(sources):
+    """Extract currency amounts, excluding obvious market-size figures."""
+    mentions = []
+    seen = set()
+    for source in sources:
+        snippet = source["snippet"]
+        for match in re.finditer(
+            r"(?:USD|EUR|GBP|CAD|AUD|[$€£])\s?\d+(?:,\d{3})*(?:\.\d{1,2})?", snippet
+        ):
+            if re.match(r"\s*(?:million|billion|trillion)\b", snippet[match.end() :], re.I):
+                continue
+            text = match.group(0)
+            key = (source["id"], text.casefold())
+            if key in seen:
+                continue
+            seen.add(key)
+            mentions.append({"source_id": source["id"], "text": text})
+            if len(mentions) == 30:
+                return mentions
+    return mentions
+
+
 SPECS = {
     "finish_research": (
         NoArgs,
@@ -295,9 +317,7 @@ class ResearchTools:
                 "Calculated margins use only the user-supplied cost scenario; they are not forecasts or verified business results."
             )
         if self.failures:
-            limitations.append(
-                "One or more research or report-validation steps failed during this run."
-            )
+            limitations.append("One or more research or tool steps failed during this run.")
         return limitations
 
     def validate_report(self, report):
@@ -329,13 +349,7 @@ class ResearchTools:
         data["sources"] = list(self.sources.values())
         data["calculation"] = self.calculation
         # Numerical observations are extracted without letting the model invent a price.
-        data["price_mentions"] = [
-            {"source_id": s["id"], "text": match.group(0)}
-            for s in self.sources.values()
-            for match in re.finditer(
-                r"(?:USD|EUR|GBP|CAD|AUD|[$€£])\s?\d[\d,]*(?:\.\d{1,2})?", s["snippet"]
-            )
-        ][:30]
+        data["price_mentions"] = price_mentions(self.sources.values())
         data["data_quality"] = "limited"
         data["assessment"] = (
             report.assessment if len(self.sources) >= 2 else "insufficient_evidence"

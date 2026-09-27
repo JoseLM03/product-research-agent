@@ -76,6 +76,34 @@ def affected_sections(error, schema_fields):
     return sections
 
 
+PRUNABLE_HYPOTHESIS_FAILURES = {
+    "numeric_forecast",
+    "unbounded_number",
+    "asserted_premise",
+    'start with the exact prefix "Test whether "',
+}
+
+
+def prune_invalid_hypotheses(raw_report, error):
+    """Drop only optional hypotheses rejected by known deterministic rules."""
+    if not isinstance(error, AlignmentError) or not error.failures:
+        return None
+    rejected = {"opportunities": set(), "risks": set()}
+    for path, reason in error.failures:
+        match = re.fullmatch(r"(opportunities|risks)\[(\d+)\]", path)
+        if not match or reason not in PRUNABLE_HYPOTHESIS_FAILURES:
+            return None
+        rejected[match.group(1)].add(int(match.group(2)))
+    pruned = copy.deepcopy(raw_report)
+    for section, indexes in rejected.items():
+        entries = pruned.get(section)
+        if not isinstance(entries, list) or any(index >= len(entries) for index in indexes):
+            return None
+        for index in sorted(indexes, reverse=True):
+            del entries[index]
+    return pruned
+
+
 def model_observation(result, seen_sources):
     """Keep exact evidence once; URL/query/timestamps remain in the report ledger."""
 
@@ -257,7 +285,12 @@ async def research(request: ResearchInput, model, tools, max_calls, emit):
                         for e in exc.errors(include_input=False, include_url=False)
                     ):
                         detail += " Omit limitations entirely: process/scope disclosures are server-owned. Do not relocate unsupported prose; product/market facts still require cited factual fields, and future tests belong in hypotheses."
-                tools.failures.append(f"{name}: {detail}")
+                # Failed report drafts remain visible as tool events, but they
+                # are recovered when a later fully validated report is accepted.
+                # Only research/tool failures affect accepted-report status and
+                # server-owned process limitations.
+                if name != "submit_report":
+                    tools.failures.append(f"{name}: {detail}")
                 result = {"error": detail}
                 if name == "submit_report" and isinstance(raw, dict):
                     result["rejected_draft"] = raw
@@ -269,6 +302,31 @@ async def research(request: ResearchInput, model, tools, max_calls, emit):
                     result["repair_evidence"] = citation_view(source)
                 await emit(name, "failed", detail)
                 if name == "submit_report" and report_attempts >= 2:
+                    pruned = prune_invalid_hypotheses(raw, exc)
+                    if pruned is not None:
+                        try:
+                            pruned_args = SPECS[name][0].model_validate(pruned)
+                            pruned_resolved = tools.resolve_references(pruned_args)
+                            pruned_report = tools.validate_report(pruned_resolved)
+                            validate_report_quality(
+                                pruned_resolved.model_dump(mode="json"), tools.sources
+                            )
+                        except (ValidationError, ValueError, ProviderError):
+                            raise AgentError(
+                                "Report evidence alignment did not pass after one repair. No report was accepted."
+                            ) from None
+                        await emit(
+                            name,
+                            "completed",
+                            "Invalid optional hypotheses were removed and the complete report passed validation.",
+                        )
+                        return pruned_report, (
+                            "partial"
+                            if tools.failures
+                            or len(tools.sources) < 2
+                            or pruned_report["assessment"] == "insufficient_evidence"
+                            else "completed"
+                        )
                     raise AgentError(
                         "Report evidence alignment did not pass after one repair. No report was accepted."
                     ) from None

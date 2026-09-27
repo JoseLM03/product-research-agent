@@ -26,6 +26,14 @@ export function ResearchReport({
   const [deleteError, setDeleteError] = useState('');
   const report = detail.report;
   const active = ['queued', 'running'].includes(detail.status);
+  const reportEventuallyCompleted = detail.events.some(
+    (event) => event.tool === 'submit_report' && event.status === 'completed',
+  );
+  const hasUnresolvedToolFailure = detail.events.some(
+    (event) =>
+      event.status === 'failed' &&
+      (event.tool !== 'submit_report' || !reportEventuallyCompleted),
+  );
   const visibleSources = new Set<string>();
   function sourceLabel(sourceId: string) {
     if (visibleSources.has(sourceId)) return sourceId;
@@ -71,19 +79,7 @@ export function ResearchReport({
       ? text.slice('Test whether '.length)
       : text;
     const withoutEnding = idea.replace(/[.?]+$/, '');
-    const copula = withoutEnding.match(/^(.+?)\s+(?:is|are)\s+(.+)$/i);
-    if (copula) return `Would ${copula[1]} be ${copula[2]}?`;
-    const thirdPersonVerb = withoutEnding.match(
-      /\b(?:creates|reduces|increases|limits|fits|supports|requires|causes|makes|improves|affects|offers|provides|uses)\b/i,
-    );
-    const question = thirdPersonVerb
-      ? withoutEnding.slice(0, thirdPersonVerb.index) +
-        thirdPersonVerb[0].slice(0, -1) +
-        withoutEnding.slice(
-          (thirdPersonVerb.index ?? 0) + thirdPersonVerb[0].length,
-        )
-      : withoutEnding;
-    return `Would ${question.charAt(0).toLowerCase()}${question.slice(1)}?`;
+    return `Could it be that ${withoutEnding}?`;
   }
   return (
     <section className="report" aria-label="Research result">
@@ -156,8 +152,11 @@ export function ResearchReport({
       )}
       {detail.status === 'partial' && (
         <p className="notice">
-          This report is incomplete. Review the limitations and failed tool
-          calls before using it.
+          {hasUnresolvedToolFailure
+            ? 'This report is incomplete. Review the limitations and failed tool calls before using it.'
+            : report?.assessment === 'insufficient_evidence'
+              ? 'This report is incomplete because the available evidence was insufficient. Review the limitations before using it.'
+              : 'This report is incomplete. Review the limitations before using it.'}
         </p>
       )}
       <Tabs value={tab} onValueChange={(value) => setTab(String(value))}>

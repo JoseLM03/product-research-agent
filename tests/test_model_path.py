@@ -88,13 +88,13 @@ def test_repair_keeps_evidence_without_replaying_failed_drafts():
             2,
             emit,
         )
-        assert status == "partial"
+        assert status == "completed"
         final_context = model.messages[-1]
         assert len(final_context) == len(model.messages[-2]) + 1
         assert "Fixture Grinder A has replaceable burrs" in json.dumps(final_context)
         assert "Invalid excerpt reference for S1" in final_context[-1]["content"]
         assert report["sources"][0]["url"] == "https://example.com/grinder-a"
-        assert len(report["limitations"]) >= 3
+        assert not any("steps failed" in item for item in report["limitations"])
 
     asyncio.run(scenario())
 

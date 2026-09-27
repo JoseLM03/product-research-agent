@@ -55,6 +55,10 @@ const detail: Detail = {
         text: 'Test whether cordless models are practical on remote jobsites.',
         validation_step: 'Ask workers to try both models on a jobsite.',
       },
+      {
+        text: 'Test whether the lightweight handheld design poses safety risks.',
+        validation_step: 'Inspect components after repeated use.',
+      },
     ],
     assessment: 'mixed_signals',
     limitations: ['Search results were limited to snippets.'],
@@ -123,20 +127,27 @@ test('presents evidence, status, and hypotheses in plain language', () => {
 
   expect(screen.getByText('Opportunities to test')).toBeInTheDocument();
   expect(screen.getByText('Risks to test')).toBeInTheDocument();
-  expect(screen.getAllByText('Idea to test:')).toHaveLength(4);
-  expect(screen.getAllByText('How to test:')).toHaveLength(4);
+  expect(screen.getAllByText('Idea to test:')).toHaveLength(5);
+  expect(screen.getAllByText('How to test:')).toHaveLength(5);
   expect(
-    screen.getByText('Would workers prefer cordless lunch boxes?'),
+    screen.getByText('Could it be that workers prefer cordless lunch boxes?'),
   ).toBeInTheDocument();
   expect(
-    screen.getByText('Would a six-cup box be too large?'),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText('Would cordless models be practical on remote jobsites?'),
+    screen.getByText('Could it be that a six-cup box is too large?'),
   ).toBeInTheDocument();
   expect(
     screen.getByText(
-      'Would the cost premium for cordless models create a barrier for entry-level construction workers?',
+      'Could it be that cordless models are practical on remote jobsites?',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Could it be that the cost premium for cordless models creates a barrier for entry-level construction workers?',
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      'Could it be that the lightweight handheld design poses safety risks?',
     ),
   ).toBeInTheDocument();
   expect(screen.queryByText('Validate:')).not.toBeInTheDocument();
@@ -155,4 +166,84 @@ test('presents evidence, status, and hypotheses in plain language', () => {
       'The report did not find enough usable evidence to make a stronger recommendation.',
     ),
   ).toBeInTheDocument();
+});
+
+test('partial warning distinguishes insufficient evidence from failed tools', () => {
+  const insufficient = {
+    ...detail,
+    status: 'partial',
+    report: { ...detail.report!, assessment: 'insufficient_evidence' },
+    events: [
+      {
+        id: 1,
+        tool: 'submit_report',
+        status: 'failed',
+        detail: 'Initial validation failed.',
+        created_at: 0,
+      },
+      {
+        id: 2,
+        tool: 'submit_report',
+        status: 'failed',
+        detail: 'Repair validation failed.',
+        created_at: 1,
+      },
+      {
+        id: 3,
+        tool: 'submit_report',
+        status: 'completed',
+        detail: 'Validated report accepted.',
+        created_at: 2,
+      },
+    ],
+  };
+  const { rerender } = render(
+    <ResearchReport detail={insufficient} onDelete={vi.fn()} />,
+  );
+  expect(
+    screen.getByText(
+      'This report is incomplete because the available evidence was insufficient. Review the limitations before using it.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/failed tool calls/)).not.toBeInTheDocument();
+
+  rerender(
+    <ResearchReport
+      detail={{
+        ...insufficient,
+        events: [
+          {
+            id: 1,
+            tool: 'search_web',
+            status: 'failed',
+            detail: 'Search failed.',
+            created_at: 0,
+          },
+        ],
+      }}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByText(
+      'This report is incomplete. Review the limitations and failed tool calls before using it.',
+    ),
+  ).toBeInTheDocument();
+
+  rerender(
+    <ResearchReport
+      detail={{
+        ...insufficient,
+        report: { ...detail.report!, assessment: 'mixed_signals' },
+        events: [],
+      }}
+      onDelete={vi.fn()}
+    />,
+  );
+  expect(
+    screen.getByText(
+      'This report is incomplete. Review the limitations before using it.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/failed tool calls/)).not.toBeInTheDocument();
 });

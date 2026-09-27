@@ -41,7 +41,7 @@ def test_native_tool_loop_observes_results_then_submits():
     ]
 
 
-def test_invalid_citation_can_be_repaired_but_is_disclosed():
+def test_invalid_citation_can_be_repaired_without_marking_report_partial():
     bad = call("submit_report", draft())
     bad["tool_calls"][0]["function"]["arguments"]["overview"]["citation"]["source_id"] = "S9"
     model = ModelFixture(
@@ -52,8 +52,10 @@ def test_invalid_citation_can_be_repaired_but_is_disclosed():
         ]
     )
     (report, status), events = run(model)
-    assert status == "partial"
-    assert any("steps failed" in x for x in report["limitations"])
+    assert status == "completed"
+    assert not any("steps failed" in x for x in report["limitations"])
+    assert any(event[:2] == ("submit_report", "failed") for event in events)
+    assert any(event[:2] == ("submit_report", "completed") for event in events)
 
 
 def test_tool_budget_stops_infinite_search():
@@ -104,3 +106,18 @@ def test_provider_failure_is_observed_and_disclosed():
     )
     assert status == "partial"
     assert any("steps failed" in x for x in report["limitations"])
+
+
+def test_insufficient_evidence_assessment_remains_partial():
+    insufficient = draft()
+    insufficient["assessment"] = "insufficient_evidence"
+    (report, status), _ = run(
+        ModelFixture(
+            [
+                call("search_web", {"query": "grinder"}),
+                call("submit_report", insufficient),
+            ]
+        )
+    )
+    assert status == "partial"
+    assert report["assessment"] == "insufficient_evidence"
