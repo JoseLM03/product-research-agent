@@ -26,33 +26,64 @@ export function ResearchReport({
   const [deleteError, setDeleteError] = useState('');
   const report = detail.report;
   const active = ['queued', 'running'].includes(detail.status);
+  const visibleSources = new Set<string>();
+  function sourceLabel(sourceId: string) {
+    if (visibleSources.has(sourceId)) return sourceId;
+    visibleSources.add(sourceId);
+    const number = sourceId.match(/^S(\d+)$/)?.[1];
+    return `${number ? `Source ${number}` : 'Source'} (${sourceId}) · Unverified excerpt`;
+  }
+  function openSource(sourceId: string) {
+    setTab('sources');
+    setTimeout(
+      () =>
+        document.getElementById(sourceId)?.scrollIntoView({ block: 'center' }),
+      50,
+    );
+  }
   function citations(claim: Claim) {
     return (
-      <p>
-        {claim.text}
-        <span className="citations">
-          {claim.citations.map((c, i) => (
+      <div className="evidence-claim">
+        {claim.citations.map((c, i) => (
+          <div key={i}>
             <button
               className="citation-button"
-              key={i}
               title={c.quote}
-              onClick={() => {
-                setTab('sources');
-                setTimeout(
-                  () =>
-                    document
-                      .getElementById(c.source_id)
-                      ?.scrollIntoView({ block: 'center' }),
-                  50,
-                );
-              }}
+              onClick={() => openSource(c.source_id)}
             >
-              {c.source_id}
+              {sourceLabel(c.source_id)}
             </button>
-          ))}
-        </span>
-      </p>
+            <blockquote>{c.quote}</blockquote>
+          </div>
+        ))}
+      </div>
     );
+  }
+  function assessmentExplanation(assessment: string) {
+    if (assessment === 'worth_further_research')
+      return 'The sources provide leads for another research step, but they do not verify demand, sales, or product performance.';
+    if (assessment === 'mixed_signals')
+      return 'The report contains useful evidence, but important questions still need research or testing.';
+    return 'The report did not find enough usable evidence to make a stronger recommendation.';
+  }
+  function hypothesisQuestion(text: string) {
+    const idea = text.startsWith('Test whether ')
+      ? text.slice('Test whether '.length)
+      : text;
+    const withoutEnding = idea.replace(/[.?]+$/, '');
+    const copula = withoutEnding.match(/^(.+?)\s+(?:is|are)\s+(.+)$/i);
+    if (copula) return `Would ${copula[1]} be ${copula[2]}?`;
+    const thirdPersonVerb = withoutEnding.match(
+      /\b(?:creates|reduces|increases|limits|fits|supports|requires|causes|makes|improves|affects|offers|provides|uses)\b/i,
+    );
+    const question = thirdPersonVerb
+      ? withoutEnding.slice(0, thirdPersonVerb.index) +
+        thirdPersonVerb[0].slice(0, -1) +
+        withoutEnding.slice(
+          (thirdPersonVerb.index ?? 0) + thirdPersonVerb[0].length,
+        )
+      : withoutEnding;
+    return `Would ${question.charAt(0).toLowerCase()}${question.slice(1)}?`;
   }
   return (
     <section className="report" aria-label="Research result">
@@ -141,9 +172,9 @@ export function ResearchReport({
           {report ? (
             <>
               <div className="assess">
-                <span className="eyebrow">LIMITED EVIDENCE</span>
-                <h3>{report.assessment.replaceAll('_', ' ')}</h3>
-                {citations(report.rationale)}
+                <span className="eyebrow">EVIDENCE STATUS</span>
+                <h3>Limited</h3>
+                <p>{assessmentExplanation(report.assessment)}</p>
               </div>
               <h3>Product overview</h3>
               {citations(report.overview)}
@@ -163,6 +194,8 @@ export function ResearchReport({
               ) : (
                 <p>No supported competitor observations were returned.</p>
               )}
+              <h3>Additional evidence</h3>
+              {citations(report.rationale)}
               <h3>Price mentions in sources</h3>
               <p className="muted">
                 Unverified snippet excerpts. These may describe accessories,
@@ -175,9 +208,9 @@ export function ResearchReport({
                       {p.text}{' '}
                       <button
                         className="citation-button"
-                        onClick={() => setTab('sources')}
+                        onClick={() => openSource(p.source_id)}
                       >
-                        {p.source_id}
+                        {sourceLabel(p.source_id)}
                       </button>
                     </li>
                   ))}
@@ -189,15 +222,18 @@ export function ResearchReport({
                 <div key={section}>
                   <h3>
                     {section === 'opportunities'
-                      ? 'Opportunity hypotheses'
-                      : 'Risk hypotheses'}
+                      ? 'Opportunities to test'
+                      : 'Risks to test'}
                   </h3>
                   {report[section].length ? (
                     report[section].map((h, i) => (
                       <div className="hypothesis" key={i}>
-                        <p>{h.text}</p>
                         <p>
-                          <strong>Validate:</strong> {h.validation_step}
+                          <strong>Idea to test:</strong>{' '}
+                          {hypothesisQuestion(h.text)}
+                        </p>
+                        <p>
+                          <strong>How to test:</strong> {h.validation_step}
                         </p>
                       </div>
                     ))

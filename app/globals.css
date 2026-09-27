@@ -37,6 +37,13 @@ body {
   font-size: 16px;
   line-height: 1.6;
 }
+.workspace {
+  display: flex;
+  height: 100dvh;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
 button,
 input,
 textarea {
@@ -60,6 +67,7 @@ a {
 }
 .topbar {
   height: 88px;
+  flex: 0 0 88px;
   background: #fff;
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -98,7 +106,10 @@ a {
 .work-grid {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
-  min-height: calc(100vh - 150px);
+  min-height: 0;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 .history {
   border-right: 1px solid var(--border);
@@ -107,6 +118,10 @@ a {
   flex-direction: column;
   gap: 15px;
   background: #f0f3f8;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .history h2 {
   font-size: 12px;
@@ -142,7 +157,11 @@ a {
   width: 100%;
   max-width: 1100px;
   padding: 54px 6vw 60px;
-  margin: auto;
+  margin: 0 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .eyebrow {
   font-size: 12px;
@@ -254,6 +273,7 @@ footer {
   display: flex;
   justify-content: space-between;
   color: #617089;
+  flex: 0 0 auto;
 }
 footer span {
   letter-spacing: 0;
@@ -378,11 +398,14 @@ summary {
   font-size: 14px;
   color: #355080;
 }
-.citations {
-  display: inline-flex;
-  gap: 5px;
-  margin-left: 8px;
-  font-size: 13px;
+.evidence-claim {
+  margin: 12px 0 18px;
+}
+.evidence-claim blockquote {
+  border-left: 2px solid #d5deee;
+  color: #344056;
+  margin: 8px 0 0;
+  padding-left: 14px;
 }
 .assess {
   background: #eef3ff;
@@ -431,8 +454,14 @@ summary {
   }
 }
 @media (max-width: 650px) {
+  .workspace {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
   .topbar {
     height: auto;
+    flex-basis: auto;
     min-height: 76px;
     flex-wrap: wrap;
     padding: 18px 22px;
@@ -442,7 +471,9 @@ summary {
   }
   .work-grid {
     display: flex;
+    flex: none;
     flex-direction: column;
+    overflow: visible;
   }
   .history {
     border-right: 0;
@@ -459,6 +490,7 @@ summary {
   }
   .main-panel {
     padding: 30px 22px;
+    overflow: visible;
   }
   .method {
     grid-template-columns: 1fr;
