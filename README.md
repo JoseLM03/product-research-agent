@@ -131,7 +131,7 @@ All application settings live in `backend/config.py`; `.env.example` documents d
 - `TAVILY_API_KEY`: server-only search credential; empty by default.
 - `RESEARCH_ENABLED`: defaults to `false`. Disables new admissions and new queue claims when false; an already-running request may finish.
 - `DAILY_GLOBAL_LIMIT`, `DAILY_SESSION_LIMIT`, `DAILY_IP_LIMIT`: defaults `20`, `5`, `10`. UTC-day SQL admission quotas. Deleting reports does not refund quota.
-- `MAX_TOOL_CALLS`: default `10`, including final report submission. The loop also has an eight-model-turn ceiling.
+- `MAX_TOOL_CALLS`: default `10` for research/tool calls. The separate structured report response and its one permitted repair do not consume this research-call budget. The research loop also has an eight-model-turn ceiling.
 - `JOB_TIMEOUT_SECONDS`: default `300`; each model request has a 90-second timeout; search has 15 seconds per attempt.
 - `WORKER_ENABLED`: default `true`. Disable only for isolated tests/maintenance; this architecture has no separately deployed worker.
 - `STATIC_DIR`: defaults to `dist/client`, relative to the process working directory.
@@ -173,9 +173,9 @@ Other current constraints: one API process/worker; no automatic retry of crashed
 
 ## Deployment and next improvements
 
-The repository includes a Dockerfile, PostgreSQL Compose example, migrations, CI, and [deployment instructions](docs/DEPLOYMENT.md). No deployment or public URL has been created. No external account credentials were used, no infrastructure was purchased, and the project has not been migrated to WSL.
+The repository includes a Dockerfile, PostgreSQL Compose example, migrations, CI, and [deployment instructions](docs/DEPLOYMENT.md). No deployment or public URL has been created. No credentials are committed to the repository; live acceptance used provider credentials configured only in the local environment. No infrastructure was purchased, and the project has not been migrated to WSL.
 
-Before inviting users: pass a real-provider acceptance run, test PostgreSQL and the container on the intended host, configure HTTPS/backups/provider spend caps, and perform keyboard/mobile/browser QA. Then prioritize claim-evidence evaluation, useful independent sources, cancellation, and established OIDC authentication if cross-device accounts become necessary. Keep the single-agent architecture until a specific product requirement justifies changing it.
+Before inviting users on a deployed host: repeat real-provider acceptance there, test PostgreSQL and the container on that host, configure HTTPS/backups/provider spend caps, and perform keyboard/mobile/browser QA. Then prioritize claim-evidence evaluation, useful independent sources, cancellation, and established OIDC authentication if cross-device accounts become necessary. Keep the single-agent architecture until a specific product requirement justifies changing it.
 
 ### Diagnose real research
 

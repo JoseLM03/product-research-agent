@@ -1,5 +1,7 @@
 # Fieldwork research diagnosis - 2026-09-12
 
+> **Historical note:** This document records the September 12 investigation and its then-current readiness conclusion. Later V1 validation, transport, and acceptance work supersedes that conclusion; see [CLAIM_ALIGNMENT.md](CLAIM_ALIGNMENT.md) and [VERIFICATION.md](VERIFICATION.md). The measurements below remain as historical evidence.
+
 Project: `C:\Users\josmn\Desktop\Projects\product-research-agent`. No project copy, WSL migration, or commit was made. Existing user changes (including Tavily, the research-call budget fixes, `num_ctx=8192`, and `num_predict=1500`) were retained.
 
 ## Findings

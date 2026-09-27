@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     research_enabled: bool = False
     daily_global_limit: int = Field(default=20, ge=1, le=1000)
-    daily_session_limit: int = Field(default=50, ge=1, le=100)
+    daily_session_limit: int = Field(default=5, ge=1, le=100)
     daily_ip_limit: int = Field(default=10, ge=1, le=200)
     max_tool_calls: int = Field(default=10, ge=2, le=20)
     job_timeout_seconds: int = Field(default=300, ge=10, le=600)

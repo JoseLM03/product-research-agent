@@ -2,7 +2,7 @@
 
 ## Current status
 
-Not deployed. The static production build and combined local FastAPI service have been verified in Windows using Node 22. Docker was not available in the execution environment, and no PostgreSQL server or hosting account was provisioned. The Docker/Compose and PostgreSQL CI paths are prepared, but their execution must be verified on the target host. No Sites URL is published: a static-only Sites deployment would not host the Python worker and database required by this application.
+Not deployed. The static production build and combined local FastAPI service have been verified in Windows using Node 22. GitHub Actions successfully ran PostgreSQL `alembic upgrade head` and `alembic check`. Docker/container execution, the complete runtime on a production host, and a managed PostgreSQL deployment remain unverified. No Sites URL is published: a static-only Sites deployment would not host the Python worker and database required by this application.
 
 ## Recommended topology
 
@@ -46,7 +46,7 @@ For a local HTTP Compose smoke test only, use `ENVIRONMENT=development` and `APP
 4. A second browser session cannot list/read/delete the first session's reports.
 5. A malformed brief is rejected; an invalid key or disconnected model produces a clear failed task; low budgets produce 429.
 6. Restart during a queued task and during a running task. Confirm queued persistence and explicit stale failure, rather than silent replay.
-7. Verify retention, delete cascades, backup restoration, resource limits, and database migrations on PostgreSQL.
+7. GitHub Actions covers PostgreSQL migration upgrade/check. On the target PostgreSQL service, still verify retention, delete cascades, backup restoration, resource limits, connectivity, and operational migration behavior.
 8. Check keyboard navigation, mobile layout, 200% zoom, focus behavior, and report/source readability in actual browsers.
 
 Do not claim production readiness solely from a container build or a deterministic test suite. Live-provider, host, browser, and operational checks are part of release acceptance.

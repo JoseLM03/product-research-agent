@@ -100,7 +100,7 @@ class ReferencedClaim(StrictModel):
 
 
 class ReportSubmission(ReportContent):
-    """Native tool input; the stored/public ReportDraft still contains exact quotes."""
+    """Structured model response; the stored/public ReportDraft contains exact quotes."""
 
     overview: ReferencedClaim = Field(
         description="Category or use context, supported by its excerpt. Do not repeat another report claim."

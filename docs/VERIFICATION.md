@@ -1,12 +1,32 @@
-# Verification record — 2026-09-09
+# Verification record
 
-## September 14 candidate: NOT READY
+## Current V1 verification — 2026-09-27
+
+Fieldwork V1 completed local/manual acceptance and the remote GitHub Actions `Verify` workflow passed on `main`.
+
+### Passed
+
+- **Backend:** 138 tests passed locally. Ruff lint and format checks passed.
+- **Frontend:** 9 tests passed. TypeScript, frontend lint, and the production build passed using Node **22.23.2**.
+- **Manual real-provider acceptance:** the configured Ollama and Tavily workflow completed, produced an accepted report, retained exact evidence, and exposed partial-result limitations.
+- **Remote backend CI:** pytest and Ruff passed. PostgreSQL `alembic upgrade head` and `alembic check` passed.
+- **Remote frontend CI:** `npm ci`, typecheck, lint, tests, production build, and `npm audit --audit-level=high` passed.
+
+The backend run retains one non-blocking upstream Starlette/AnyIO deprecation warning.
+
+### Current limits
+
+The application is not deployed. Docker/container runtime, the complete service on a production host, managed PostgreSQL operation, penetration testing, and full browser visual/accessibility acceptance remain unverified. Reports preserve exact selected excerpts and deterministic validation, but they are not independently verified market intelligence; users must assess source quality and the report's disclosed limitations.
+
+## Historical verification records
+
+### Historical September 14 candidate: NOT READY at that checkpoint
 
 120 Python tests passed (6.55 seconds; one upstream Starlette/AnyIO deprecation warning), 7 frontend tests passed, and Ruff lint/format plus frontend lint/typecheck passed. The 26-case real local-model adversarial evaluation had 2 false accepts and 2 false rejects in 13.695 seconds. Four real API/SQLite-worker/Ollama/Tavily tasks failed closed after one repair (28.042, 43.820, 37.240, and 35.723 seconds). No report from those four runs was accepted. These are correctness and completion-rate blockers despite passing unit tests. See [full evidence and limitations](CLAIM_ALIGNMENT.md). No new build, deployment, or browser verification was performed for this backend-only change. Historical results below refer to earlier checkpoints.
 
 All results below refer to the Windows project in this handoff. No WSL files were copied, overwritten, or removed.
 
-## Passed
+### Historical checks passed
 
 - **40 backend tests** using Python 3.12 in the repository-local `.venv`. Covers decimal arithmetic, unsafe source links, schema rejection, exact citations, native tool-loop observations, invalid submission repair, tool/turn bounds, retry behavior, provider failures, session authorization, request origins, body limits, durable reports, deletion, concurrent SQL quotas, background queue execution, worker deadlines, stale recovery, and retention cascades.
 - **7 frontend tests** across 2 Vitest files. Covers disabled providers, actual brief submission, explicit persisted failure, active-task recovery, reconnect feedback, same-origin API behavior, and HTTP failure handling.
@@ -21,7 +41,7 @@ All results below refer to the Windows project in this handoff. No WSL files wer
 
 The Python tests emitted one upstream deprecation warning from Starlette's use of `anyio.abc.BlockingPortal`. Restricted sandbox temp-directory permissions required a fresh workspace-local pytest `--basetemp` and cache directory; assertions and test cases were unchanged.
 
-## Not verified / unsuccessful
+### Historical gaps at that checkpoint
 
 - **Real Ollama workflow:** the opt-in smoke test against the installed local `qwen3.5:9b` model timed out before returning a usable result. That test used clearly synthetic search evidence and would not establish real-market research even if it passed. Native tool protocol and multi-step orchestration passed deterministic tests.
 - **Real Tavily research:** no authorized search key was provided. No live market report is claimed. There is no production mock fallback.
@@ -33,7 +53,7 @@ The Python tests emitted one upstream deprecation warning from Starlette's use o
 - **Node 24 build:** native Windows libuv assertion at process exit. Node 22 passed, `.nvmrc` records the tested version, and the prebuild check rejects unsupported majors.
 - **WSL migration:** deferred at the user's instruction. The original Windows project is the delivered source.
 
-## Reproduce
+### Historical reproduction notes
 
 Use the README commands with Node 22 and the new local Python `.venv`. For the read-only built-app runtime check, start the Python service from the repository root and run:
 
@@ -44,6 +64,6 @@ Use the README commands with Node 22 and the new local Python `.venv`. For the r
 Live-provider and production acceptance steps are in `DEPLOYMENT.md`. Configure providers before relying on the product for actual research; review cited claims manually.
 
 
-## September 12 live-agent diagnosis
+### Historical September 12 live-agent diagnosis
 
 The current Desktop project passed 74 Python tests, 7 frontend tests, frontend typecheck/lint, and Ruff checks. Three real model/search runs completed in 22.431, 15.335, and 14.292 seconds, with 10 sources and no report repair in each. These used the real HTTP API routes through TestClient, a real isolated SQLite queue/worker, Ollama, Tavily, and persisted reports. They do not establish browser QA or semantic correctness of every generated claim. See `RESEARCH_DIAGNOSIS.md` for the failure evidence, model comparison, exact per-call timings, and remaining V1 gate. Historical results above refer to the earlier handoff.

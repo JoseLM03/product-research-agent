@@ -9,14 +9,18 @@ No LangChain, vector database, browser scraper, broker, or separate job service 
 ## Agent loop
 
 1. Load the original validated brief and optional cost scenario.
-2. Send the system instructions, brief, and JSON-schema tool definitions to Ollama `/api/chat` with `stream=false`.
-3. Receive native `message.tool_calls`; free text alone never constitutes a completed report.
-4. Validate the tool name and arguments against the registry's Pydantic model.
-5. Execute the selected tool and append a `role=tool`, `tool_name=...` observation to the conversation.
-6. Allow additional model-selected calls until a valid `submit_report` call, eight turns, ten research calls by default, or the job deadline. `submit_report` is exempt from the research-call budget; only that tool is offered once the budget is exhausted.
-7. Validate citations against the server-owned source ledger, then enforce short attributed claims, one excerpt per claim, numerical-token inclusion, and prospective hypothesis framing. Screen model-authored report prose with one bounded local Ollama call per candidate before persistence. Rejected submissions get at most one repair; unavailable/malformed verification fails immediately. This candidate is not V1-ready; see `CLAIM_ALIGNMENT.md`.
+2. Send the system instructions, brief, and native research-tool definitions to Ollama `/api/chat` with `stream=false`.
+3. Receive native `message.tool_calls`, then validate each tool name and its arguments against the registry's Pydantic model.
+4. Execute the selected research tool and append a `role=tool`, `tool_name=...` observation to the conversation.
+5. Allow additional model-selected calls until `finish_research`, eight planning turns, ten research calls by default, or the job deadline.
+6. Build a bounded finalization context from the request, collected evidence, calculations, and server-owned process limitations. Request the report through a separate schema-constrained structured response rather than a native tool call.
+7. Resolve every factual selection to the exact server-held source excerpt. The model selects evidence references; it does not author factual paraphrases.
+8. Apply Pydantic validation and deterministic checks for references, excerpts, citations, duplicates, report limits, and hypothesis quality.
+9. If validation fails, allow at most one model repair. Only affected top-level sections may be returned and replaced; unaffected sections remain frozen server-side.
+10. If the repaired report fails only on known optional opportunity/risk hypothesis-quality rules, remove exactly those invalid entries without another model call.
+11. Revalidate the complete report before persistence. No report is accepted through the repair or pruning paths unless it passes the same full validation.
 
-Tool errors are returned as observations so the model can adapt. Invalid submissions can be repaired within the planning limit, and failed attempts remain limitations. For a standalone rejected submission, the model receives the latest repair guidance instead of accumulating invalid drafts. Search observations omit repeated metadata and expose deterministic numbered excerpts; the original source ledger is unchanged. Arbitrary code, shell commands, filesystem access, and arbitrary URL fetching are not agent capabilities. The app does not expose or persist model chain-of-thought.
+Research-tool errors are returned as observations so the model can adapt. Failed report-validation attempts remain visible in activity history. A recovered report-validation failure does not by itself make an accepted report partial or add a limitation. Genuine research/provider/tool failures and an `insufficient_evidence` assessment still produce partial results. Search observations omit repeated metadata and expose deterministic numbered excerpts; the original source ledger is unchanged. Arbitrary code, shell commands, filesystem access, and arbitrary URL fetching are not agent capabilities. The app does not expose or persist model chain-of-thought.
 
 ## Every agent tool
 
@@ -24,17 +28,19 @@ Tool errors are returned as observations so the model can adapt. Invalid submiss
 - **`search_competitors(query)`**: uses the same provider with a competitor/retail-oriented query suffix. A narrow product-focused affordance, not an independent dataset. Results do not establish competitor sales or demand.
 - **`inspect_evidence(source_id)`**: returns the already-retrieved snippet and provenance. It cannot invent a source or retrieve a new arbitrary URL.
 - **`calculate_margin()`**: no model-controlled numeric arguments. Reads the original validated cost inputs and calculates fees, contribution per unit, and contribution-margin percentage using Decimal and half-up rounding. Missing costs produce an explicit limitation.
-- **`submit_report(report)`**: accepts the strict `ReportSubmission` schema with source IDs and one-based excerpt numbers. The server rejects unavailable references, resolves exact original text, and applies the existing `ReportDraft` and quote/source validation before persistence. The public report still contains full quotes. This is the loop's terminal tool; it does not send a user-authored report to any third party.
+- **`finish_research()`**: ends native evidence gathering and starts structured report finalization.
+
+Report finalization is not a native research tool. It uses the bounded `ReportSubmission` schema in a separate schema-constrained response. The server rejects unavailable references, resolves exact original text, and applies the `ReportDraft` and report-quality validation before persistence. The public report still contains full quotes.
 
 The optional browser `stage_research_idea` WebMCP affordance only fills the brief. It does not start research or spend provider resources. It is separate from the backend research agent. Unsupported browsers ignore it.
 
 ## Report contract
 
-Native submissions use one `citation: {source_id, excerpt}` per factual claim and a 300-character limit. The public report retains `citations: [{source_id, quote}]`, so saved reports and frontend types remain compatible. Overview and rationale follow the same rules as observations and competitors. Opportunities and risks start with `Test whether ` and include a future validation step. The assessment is one of `worth_further_research`, `mixed_signals`, or `insufficient_evidence`.
+Structured report selections use one `citation: {source_id, excerpt}` per factual claim and a 300-character limit. The server resolves each selection to the exact excerpt, and the public report retains `citations: [{source_id, quote}]`, so saved reports and frontend types remain compatible. Overview and rationale follow the same rules as observations and competitors. Opportunities and risks start with `Test whether ` and include a future validation step. The assessment is one of `worth_further_research`, `mixed_signals`, or `insufficient_evidence`.
 
 The server supplies source records, price mentions, calculations, and `data_quality=limited`. The model cannot supply arbitrary output source URLs or modify the original cost scenario. The UI renders text through React, never as raw model-generated HTML or Markdown.
 
-`completed` means a report passed structural/evidence-reference validation and the candidate support checks. The local reviewer has demonstrated false accepts, so this does not certify semantic correctness. Tool failures, too few sources, and an insufficient-evidence assessment produce `partial`; an invalid or absent report produces `failed`.
+`completed` means a report passed schema and all deterministic report validation. Genuine research/provider/tool failures, too few usable sources, and an insufficient-evidence assessment produce `partial`; recovered report-validation attempts alone do not. An invalid or absent report produces `failed`.
 
 ## SQL design
 
@@ -57,4 +63,4 @@ The worker is deliberately configured for one process/replica. SQL claims preven
 
 No account system: signed browser identity meets private browser history without password management. No full-page retrieval: avoiding arbitrary network fetching removes a major SSRF and scraping surface. No financial predictions: explicit cost scenarios are sufficient to demonstrate a deterministic tool. No auto-replay of crashed work: this avoids duplicate provider usage after uncertain failures.
 
-Native tool schemas inline Pydantic references because Ollama 0.34.0 does not retain `$ref` in tool properties. All server-side constraints remain. See `RESEARCH_DIAGNOSIS.md` for measured context and generation behavior.
+Native research-tool schemas inline Pydantic references because Ollama 0.34.0 does not retain `$ref` in tool properties. All server-side constraints remain. See `RESEARCH_DIAGNOSIS.md` for historical context and generation measurements.
