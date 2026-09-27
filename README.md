@@ -1,4 +1,4 @@
-# Fieldwork â€” AI-Powered E-Commerce Product Research Agent
+# Fieldwork — AI-Powered E-Commerce Product Research Agent
 
 Fieldwork is a full-stack research workspace for investigating product ideas. One AI agent chooses research tools, observes their results, makes follow-up calls, and submits a validated report with source quotes. Research runs as a durable SQL job; the browser shows its status, tool activity, findings, and limitations.
 
