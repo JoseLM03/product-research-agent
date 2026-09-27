@@ -2,7 +2,7 @@
 
 Fieldwork is a full-stack research workspace for investigating product ideas. One AI agent chooses research tools, observes their results, makes follow-up calls, and submits a validated report with source quotes. Research runs as a durable SQL job; the browser shows its status, tool activity, findings, and limitations.
 
-**Status: NOT READY for a V1 research-quality checkpoint.** The September 14 candidate adds strict claim checks and bounded local support review, but four live runs failed closed and the review still made semantic mistakes. This uncommitted candidate reduces completion reliability compared with the September 12 runtime checkpoint. See [claim-alignment evaluation](docs/CLAIM_ALIGNMENT.md) for failures, timings, and tests. The application is locally tested, not deployed or independently verified market intelligence.
+**Status: Fieldwork V1 has completed local automated and manual acceptance.** The application is locally tested and is not deployed. It is a research aid, not independently verified market intelligence. Reports use deterministic citation and exact-excerpt validation, and they clearly expose execution limitations and partial results. See [claim-alignment documentation](docs/CLAIM_ALIGNMENT.md) for the validation design and acceptance procedure.
 
 There are no sample market reports, fake users, invented metrics, or silent mock-provider fallbacks in the application. Without provider configuration, the UI clearly disables research. Existing research is private to a signed browser session.
 

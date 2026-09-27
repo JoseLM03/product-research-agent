@@ -18,7 +18,9 @@ No model judges semantic alignment. The earlier Qwen report-verifier request, ve
 
 Evidence preprocessing conservatively omits candidates with internal omission markers, visibly chopped transcript tails, dangling endings, navigation or call-to-action fragments, orphan pipe-table rows, or unbalanced delimiters. Complete sentences adjacent to an omitted gap remain selectable. Text is never joined across a gap, and missing table mappings are never inferred.
 
-The report still receives at most one repair. A validation failure is mapped to affected top-level sections. The repair schema contains only those sections, the server freezes the initial values of every other section, and the merge copies only approved section keys even if a provider ignores the repair schema. The complete merged report then receives all validation again.
+The report flow is bounded: the model produces one initial structured report, deterministic validation runs, and at most one model repair may replace only affected top-level sections while every unaffected section remains frozen. If the repaired report still fails only on known deterministic quality violations in optional opportunity or risk hypotheses, the server may remove exactly those invalid entries. No additional model call is made. The complete repaired or pruned report must pass schema, citation, evidence, duplicate, hypothesis, limitation, and size validation before acceptance.
+
+Failed `submit_report` attempts remain visible in activity history. When a later repaired or pruned report passes full validation, those recovered attempts do not by themselves make the accepted report partial or add a failure limitation. Genuine research or tool failures still produce partial status and server-owned limitations. An `insufficient_evidence` assessment also remains partial.
 
 ## Deterministic evaluation
 
