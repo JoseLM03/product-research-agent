@@ -67,7 +67,7 @@ def create_app(settings=None, *, model=None, search=None):
 
     app = FastAPI(
         title="Fieldwork Research API",
-        version="1.0.0",
+        version="1.0.1",
         lifespan=lifespan,
         docs_url="/api/docs" if settings.environment != "production" else None,
         openapi_url="/api/openapi.json" if settings.environment != "production" else None,
