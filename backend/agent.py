@@ -84,14 +84,48 @@ PRUNABLE_HYPOTHESIS_FAILURES = {
 }
 
 
-def prune_invalid_hypotheses(raw_report, error):
-    """Drop only optional hypotheses rejected by known deterministic rules."""
+def prune_invalid_optional_entries(raw_report, error, resolved_report):
+    """Drop only known invalid hypotheses or confirmed later optional duplicates."""
     if not isinstance(error, AlignmentError) or not error.failures:
         return None
-    rejected = {"opportunities": set(), "risks": set()}
+    rejected = {
+        section: set() for section in ("opportunities", "risks", "observations", "competitors")
+    }
+    claims = [
+        ("overview", resolved_report["overview"]),
+        ("rationale", resolved_report["rationale"]),
+    ]
+    claims += [
+        (f"{section}[{index}]", claim)
+        for section in ("observations", "competitors")
+        for index, claim in enumerate(resolved_report[section])
+    ]
+    positions = {path: index for index, (path, _) in enumerate(claims)}
     for path, reason in error.failures:
         match = re.fullmatch(r"(opportunities|risks)\[(\d+)\]", path)
-        if not match or reason not in PRUNABLE_HYPOTHESIS_FAILURES:
+        if match and reason in PRUNABLE_HYPOTHESIS_FAILURES:
+            rejected[match.group(1)].add(int(match.group(2)))
+            continue
+        match = re.fullmatch(r"(observations|competitors)\[(\d+)\]", path)
+        duplicate = re.fullmatch(
+            r"duplicate factual claim of (overview|rationale|observations\[\d+\]|competitors\[\d+\]); "
+            r"replace it with a distinct exact excerpt or remove this optional entry",
+            reason,
+        )
+        if not match or not duplicate:
+            return None
+        original = duplicate.group(1)
+        if (
+            path not in positions
+            or original not in positions
+            or positions[original] >= positions[path]
+        ):
+            return None
+        quotes = [claims[positions[p]][1].get("citations", []) for p in (original, path)]
+        if any(len(citations) != 1 for citations in quotes):
+            return None
+        normalized = [" ".join(c[0].get("quote", "").casefold().split()) for c in quotes]
+        if not normalized[0] or normalized[0] != normalized[1]:
             return None
         rejected[match.group(1)].add(int(match.group(2)))
     pruned = copy.deepcopy(raw_report)
@@ -302,7 +336,11 @@ async def research(request: ResearchInput, model, tools, max_calls, emit):
                     result["repair_evidence"] = citation_view(source)
                 await emit(name, "failed", detail)
                 if name == "submit_report" and report_attempts >= 2:
-                    pruned = prune_invalid_hypotheses(raw, exc)
+                    pruned = (
+                        prune_invalid_optional_entries(raw, exc, resolved.model_dump(mode="json"))
+                        if isinstance(exc, AlignmentError)
+                        else None
+                    )
                     if pruned is not None:
                         try:
                             pruned_args = SPECS[name][0].model_validate(pruned)
@@ -318,7 +356,18 @@ async def research(request: ResearchInput, model, tools, max_calls, emit):
                         await emit(
                             name,
                             "completed",
-                            "Invalid optional hypotheses were removed and the complete report passed validation.",
+                            "Invalid optional entries were removed ("
+                            + ", ".join(
+                                f"{section}: {len(raw[section]) - len(pruned[section])}"
+                                for section in (
+                                    "observations",
+                                    "competitors",
+                                    "opportunities",
+                                    "risks",
+                                )
+                                if len(raw[section]) != len(pruned[section])
+                            )
+                            + ") and the complete report passed validation.",
                         )
                         return pruned_report, (
                             "partial"

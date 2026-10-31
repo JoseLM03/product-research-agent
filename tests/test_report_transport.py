@@ -6,13 +6,118 @@ import json
 import httpx
 import pytest
 
-from backend.agent import AgentError, research
+from backend.agent import AgentError, prune_invalid_optional_entries, research
 from backend.config import Settings
 from backend.providers import Ollama, ProviderError
 from backend.quality import AlignmentError
 from backend.schemas import ReportSubmission, ResearchInput
 from backend.tools import ResearchTools, definitions, tool_schema
 from tests.helpers import ModelFixture, SearchFixture, call, draft
+
+
+@pytest.mark.parametrize("cross_source", [False, True])
+@pytest.mark.parametrize("assessment", ["mixed_signals", "insufficient_evidence"])
+def test_post_repair_duplicate_recovery_preserves_evidence_and_status(cross_source, assessment):
+    class Search(SearchFixture):
+        async def search(self, query):
+            rows = await super().search(query)
+            if cross_source:
+                rows[1]["description"] = rows[0]["description"]
+            return rows
+
+    submission = call("submit_report", draft())["tool_calls"][0]["function"]["arguments"]
+    submission["assessment"] = assessment
+    observation = submission["observations"][0]
+    competitor = submission["competitors"][0]
+    duplicate = {"citation": {"source_id": "S2" if cross_source else "S1", "excerpt": 3}}
+    submission["competitors"] = [competitor, duplicate, observation, competitor]
+    submission["risks"] = [
+        {"text": "Test whether sales grow 50%.", "validation_step": "Run a study."}
+    ]
+    model = ModelFixture(
+        [
+            call("search_competitors", {"query": "grinder"}),
+            call("submit_report", submission),
+            call("submit_report", submission),
+        ]
+    )
+    events = []
+
+    async def emit(*event):
+        events.append(event)
+
+    report, status = asyncio.run(
+        research(ResearchInput(idea="coffee grinder"), model, ResearchTools(Search()), 10, emit)
+    )
+    assert status == ("partial" if assessment == "insufficient_evidence" else "completed")
+    assert len(report["competitors"]) == 1
+    assert report["competitors"][0]["citations"][0]["quote"].endswith("steel housing.")
+    assert len(report["observations"]) == 1
+    assert report["risks"] == []
+    assert not any("steps failed" in item for item in report["limitations"])
+    assert len(model.messages) == 3
+    assert not model.responses
+    assert sum(e[:2] == ("submit_report", "failed") for e in events) == 2
+    assert "competitors: 3" in events[-1][2]
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        (
+            "rationale",
+            "duplicate factual claim of overview; replace it with a distinct exact excerpt",
+        ),
+        ("competitors[0]", "unknown"),
+        (
+            "competitors[0]",
+            "duplicate factual claim of observations[99]; replace it with a distinct exact excerpt or remove this optional entry",
+        ),
+        ("overview", "use exactly one supporting excerpt"),
+    ],
+)
+def test_unsafe_or_ambiguous_failures_prevent_all_pruning(failure):
+    report = draft()
+    error = AlignmentError([("risks[0]", "numeric_forecast"), failure])
+    assert prune_invalid_optional_entries(report, error, report) is None
+
+
+def test_pruned_report_still_runs_full_quality_validation(monkeypatch):
+    from backend.quality import validate_report_quality
+
+    submission = call("submit_report", draft())["tool_calls"][0]["function"]["arguments"]
+    submission["competitors"].append(submission["observations"][0])
+    calls = []
+
+    def validate(report, sources):
+        calls.append(report)
+        validate_report_quality(report, sources)
+        raise AlignmentError([("report", "synthetic final validation failure")])
+
+    monkeypatch.setattr("backend.agent.validate_report_quality", validate)
+    model = ModelFixture(
+        [
+            call("search_web", {"query": "grinder"}),
+            call("submit_report", submission),
+            call("submit_report", submission),
+        ]
+    )
+
+    async def emit(*args):
+        pass
+
+    with pytest.raises(AgentError, match="one repair"):
+        asyncio.run(
+            research(
+                ResearchInput(idea="coffee grinder"),
+                model,
+                ResearchTools(SearchFixture()),
+                10,
+                emit,
+            )
+        )
+    assert len(calls) == 3
+    assert len(model.messages) == 3
 
 
 def test_report_schema_is_not_exposed_as_native_tool():
